@@ -341,19 +341,45 @@ async function loadExtFile(type) {
   D.extFiles[type] = p; return p;
 }
 async function extEntry(id) { await loadExtFile(id[0]); return D.extById.get(id) || null; }
-async function findRu(word) { // returns array of entries matching the Russian dictionary form
-  const k = normRu(word); const out = [];
-  for (const id of (D.byRu.get(k) || [])) out.push(entry(id));
-  for (const [id, w] of Object.entries(S.words)) if (normRu(w.ru) === k && !out.find(x => x.id === id)) out.push(w);
+async function loadForms() {
+  if (D.forms) return D.forms;
+  if (!D.formsP) D.formsP = (async () => {
+    const t = await (await fetch('forms.txt')).text(); const m = new Map();
+    for (const l of t.split('\n')) { const i = l.indexOf('\t'); if (i > 0) m.set(l.slice(0, i), l.slice(i + 1).split(',')); }
+    D.forms = m; return m;
+  })();
+  return D.formsP;
+}
+async function lookupRu(word) { // real dictionary lookup: exact dictionary form first, then inflected forms
+  const k = normRu(word); if (!k) return { entries: [], via: '' };
+  const out = []; const add = e => { if (e && !out.find(x => x.id === e.id)) out.push(e); };
+  const k2 = k.replace(/ё/g, 'е');
+  for (const id of (D.byRu.get(k) || [])) add(entry(id));
+  if (!out.length) for (const [kk, ids] of D.byRu) if (kk.replace(/ё/g, 'е') === k2) ids.forEach(id => add(entry(id)));
+  for (const [id, w] of Object.entries(S.words)) if (w.src === 'user' && normRu(w.ru) === k) add(w);
   if (!out.length) {
     const idx = await loadExtIdx();
-    const k2 = k.replace(/ё/g, 'е');
-    const hits = idx.filter(x => x.k === k || x.k.replace(/ё/g, 'е') === k2).slice(0, 4);
-    for (const h of hits) { const e = await extEntry(h.id); if (e) out.push(e); }
+    for (const h of idx.filter(x => x.k === k || x.k.replace(/ё/g, 'е') === k2).slice(0, 4)) add(await extEntry(h.id));
   }
-  return out;
+  if (out.length) return { entries: out, via: '' };
+  const forms = await loadForms();
+  const ids = forms.get(k) || forms.get(k2) || [];
+  for (const id of ids.slice(0, 4)) add(D.byId.get(id) || await extEntry(id));
+  out.sort((a, b) => (D.byId.has(a.id) ? 0 : 1) - (D.byId.has(b.id) ? 0 : 1));
+  return { entries: out, via: out.length ? k : '' };
 }
-
+async function findRu(word) { return (await lookupRu(word)).entries; }
+function expandRu(ru, fr) { // "студент(ка)", "студент / студентка", "студент/-ка" -> one row per word
+  ru = String(ru || '').trim(); fr = String(fr || '').trim();
+  let parts = [];
+  const m = ru.match(/^([^()]+)\(([^)]+)\)\s*$/);
+  if (m && isCyr(m[2])) parts = [m[1].trim(), m[1].trim() + m[2].replace(/^-/, '').trim()];
+  else if (/[\/]/.test(ru)) { const xs = ru.split(/\s*\/\s*/).filter(Boolean); parts = xs.map((x, i) => i && /^-/.test(x) ? xs[0] + x.slice(1) : x); }
+  else parts = [ru];
+  let frs = fr.split(/\s*\/\s*/);
+  if (parts.length === 2 && frs.length === 1 && /\([a-zéèêàç]{1,4}\)/i.test(fr)) frs = [fr.replace(/\(([a-zéèêàç]{1,4})\)/gi, '').trim(), fr.replace(/\(([a-zéèêàç]{1,4})\)/gi, '$1').trim()];
+  return parts.map((x, i) => ({ ru: x, fr: frs.length === parts.length ? frs[i] : (i ? '' : fr) }));
+}
 // ---------------------------------------------------------------- storage (db capability with local fallback)
 const Store = {
   db: null, uid: null, mode: 'local', exists: new Set(), queue: new Map(), busy: new Set(), sample: null, downloads: null,
@@ -504,7 +530,7 @@ function gBadge(e) {
   if (!e || e.t !== 'n' || !S.settings.show.g) return '';
   const g = e.g || 'x';
   const label = { m: 'm', f: 'f', n: 'n', pl: 'pl', both: 'm/f', x: '?' }[g] || g;
-  const title = { m: 'masculin', f: 'féminin', n: 'neutre', pl: 'pluriel seulement', both: 'masculin ou féminin' }[g] || 'genre inconnu';
+  const title = { m: 'masculin', f: 'féminin', n: 'neutre', pl: 'pluriel seulement', both: 'genre commun : masculin ou féminin selon la personne' }[g] || 'genre absent des dictionnaires';
   return `<span class="g ${g === 'both' ? 'x' : esc(g)}" title="${title}">${label}</span>`;
 }
 const NOTE_TOGGLE = { genre: 'g', indecl: 'g', pluriel: 'irr', voyelle: 'decl', alt: 'irr', rad: 'irr', irr: 'irr', regle: 'rules', passe: 'past', comp: 'adj' };
@@ -553,7 +579,17 @@ function wordDetail(e, opts = {}) {
     if (f.plGen) rows.push(['génitif pluriel', f.plGen]);
     if (rows.length) parts.push(`<div class="stack" style="gap:6px"><h3>Autres formes</h3><dl class="facts">${rows.map(([a, b]) => `<dt>${a}</dt><dd lang="ru">${esc(showStress(b))}</dd>`).join('')}</dl></div>`);
   }
-  if (opts.meta) parts.push(`<p class="small muted">${esc(classLabel(e) || '')}${e.src === 'claude' ? ' · fiche complétée par Claude, à vérifier avec ton professeur' : ''}</p>`);
+  if (opts.meta) {
+    const GS = { 'oc+or': 'OpenCorpora et OpenRussian', oc: 'OpenCorpora', or: 'OpenRussian', user: 'saisi par toi' };
+    const GN = { m: 'masculin', f: 'féminin', n: 'neutre', pl: 'pluriel seulement', both: 'genre commun (m ou f selon la personne)' };
+    const tsrc = e.tsrc || (e.src === 'user' ? 'user' : e.src === 'claude' ? 'claude' : 'banque');
+    const rows = [];
+    if (e.t === 'n') rows.push(['Genre', e.g ? `${GN[e.g] || e.g} · selon ${GS[e.gs] || 'le dictionnaire'}${e.gd ? ` (OpenRussian indique ${GN[e.gd] || e.gd})` : ''}` : 'absent des deux dictionnaires']);
+    rows.push(['Grammaire', e.src === 'user' ? 'saisie par toi' : 'dictionnaire OpenRussian' + (e.t === 'n' ? ', genre recoupé avec OpenCorpora' : '')]);
+    rows.push(['Traduction', { feuille: 'ta feuille de cours', banque: 'banque du cahier', claude: 'proposée par Claude, à vérifier', user: 'saisie par toi' }[tsrc] || 'banque du cahier']);
+    if (e.en) rows.push(['Sens anglais (dictionnaire)', esc(e.en)]);
+    parts.push(`<dl class="facts" style="font-size:13px">${rows.map(([a, b]) => `<dt>${a}</dt><dd style="font-family:var(--font-ui);font-size:13px">${b}</dd>`).join('')}</dl>`);
+  }
   return parts.join('');
 }
 
@@ -937,7 +973,7 @@ async function addFromBank(id, list) {
   let fr = e.fr;
   if (!fr) {
     const t = await translateWithClaude([e]);
-    if (t && t[0]) { e.fr = t[0].fr; e.alt = t[0].alt; e.src = 'claude'; fr = e.fr; if (e.t === 'n' && !e.g && ['m', 'f', 'n', 'pl'].includes(t[0].g)) e.g = t[0].g; }
+    if (t && t[0] && t[0].fr) { e.fr = t[0].fr; e.alt = t[0].alt || []; e.tsrc = 'claude'; fr = e.fr; }
   }
   if (!fr) { toast(PWA ? 'Ce mot n’a pas encore de traduction française. Ajoute-le via Ajouter › Un mot en tapant sa traduction.' : 'Impossible d’obtenir la traduction française. Ajoute le mot depuis l’onglet Ajouter en la saisissant.', 4500); return false; }
   addCard(id, list, structuredClone(e)); toast('Ajouté à « ' + list + ' »'); renderSync(); return true;
@@ -1044,8 +1080,8 @@ async function translateWithClaude(entries) {
   const list = entries.map(e => ({ id: e.id, ru: e.ru, classe: classLabel(e) || 'autre', genre: e.g || '', anglais: e.en || '' }));
   const r = await sampleJson(`Tu aides un francophone débutant en russe. Donne la traduction française de chaque mot russe ci-dessous.
 ${FR_RULES}
-Pour un nom dont le genre est vide, donne aussi son genre grammatical russe dans "g" ("m", "f", "n", ou "pl" s'il n'existe qu'au pluriel).
-Réponds uniquement en JSON : un tableau d'objets {"id": "...", "fr": "...", "alt": ["..."], "g": "..."} dans le même ordre.
+Le sens anglais donné par le dictionnaire indique le sens à traduire.
+Réponds uniquement en JSON : un tableau d'objets {"id": "...", "fr": "...", "alt": ["..."]} dans le même ordre.
 Mots : ${JSON.stringify(list)}`);
   return Array.isArray(r) ? r : (r && Array.isArray(r.items) ? r.items : null);
 }
@@ -1058,55 +1094,15 @@ Réponds uniquement en JSON : {"items":[{"ru":"...","fr":"...","alt":["..."]}]}`
   const out = [];
   for (const it of items.slice(0, 6)) {
     if (!it || !it.ru) continue;
-    const found = await findRu(it.ru);
-    if (found.length) {
-      const e = found[0];
-      if (!D.byId.has(e.id) && !e.fr) { e.fr = it.fr; e.alt = it.alt || []; e.src = 'claude'; }
-      out.push(e);
-    } else {
-      const ent = await enrichWithClaude([{ ru: it.ru, fr: it.fr }]);
-      if (ent && ent[0]) out.push(ent[0]);
+    const res = await lookupRu(it.ru);
+    if (res.entries.length && !res.via) {
+      const e = res.entries[0];
+      if (!D.byId.has(e.id) && !e.fr) { e.fr = it.fr; e.alt = it.alt || []; e.tsrc = 'claude'; }
+      if (!out.find(x => x.id === e.id)) out.push(e);
     }
   }
   return out;
 }
-function guessGender(w) { // fallback when Claude gives no gender: ending rule, left empty when unsure
-  w = plain(w).toLowerCase();
-  if (/мя$/.test(w)) return 'n';
-  if (/[оеё]$/.test(w)) return 'n';
-  if (/[бвгджзйклмнпрстфхцчшщ]$/.test(w)) return 'm';
-  return '';
-}
-function cleanEntry(x) { // validate an entry produced by Claude
-  if (!x || typeof x !== 'object' || !x.ru) return null;
-  const t = ['n', 'v', 'a', 'o'].includes(x.t) ? x.t : 'o';
-  const e = { id: 'c' + now().toString(36) + Math.random().toString(36).slice(2, 6), t, ru: plain(String(x.ru)).trim().toLowerCase(), acc: String(x.acc || x.ru).trim(), fr: String(x.fr || '').trim(), alt: Array.isArray(x.alt) ? x.alt.map(String).slice(0, 5) : [], src: 'claude' };
-  if (t === 'n') { e.g = ['m', 'f', 'n', 'pl'].includes(x.g) ? x.g : guessGender(e.ru); if (x.f && typeof x.f === 'object') e.f = { sgGen: String(x.f.sgGen || ''), plNom: String(x.f.plNom || ''), plGen: String(x.f.plGen || '') }; }
-  if (t === 'v' && x.v && Array.isArray(x.v.pres) && x.v.pres.length === 6) {
-    e.v = { asp: x.v.asp === 'p' ? 'p' : 'i', partner: String(x.v.partner || ''), conj: ['1', '2', 'mixte', 'irr'].includes(String(x.v.conj)) ? String(x.v.conj) : '', tense: x.v.asp === 'p' ? 'futur' : 'présent', pres: x.v.pres.map(String), past: Array.isArray(x.v.past) ? x.v.past.map(String).slice(0, 4) : [], imp: [], status: ['reg', 'rad', 'alt', 'irr'].includes(x.v.status) ? x.v.status : 'reg', irr: Array.isArray(x.v.irr) ? x.v.irr.filter(i => Number.isInteger(i) && i >= 0 && i < 6) : [] };
-  }
-  if (t === 'a' && x.a && Array.isArray(x.a.forms)) e.a = { forms: x.a.forms.map(String).slice(0, 4), short: [], comp: String(x.a.comp || '') };
-  if (Array.isArray(x.n)) e.n = x.n.filter(n => Array.isArray(n) && n.length === 2).map(([k, t]) => [String(k), String(t)]).slice(0, 4);
-  if (!e.fr) return null;
-  return e;
-}
-async function enrichWithClaude(items) { // items: [{ru?, fr?}] not found in the bank
-  const r = await sampleJson(`Tu aides un francophone débutant en russe à créer des fiches de vocabulaire. Pour chaque élément (mot russe et/ou traduction française), produis une fiche complète et exacte.
-${FR_RULES}
-Le genre "g" est obligatoire pour chaque nom.
-Format de chaque fiche :
-{"t": "n" | "v" | "a" | "o" (nom, verbe, adjectif, autre), "ru": forme de dictionnaire sans accent, "acc": la même forme avec l'accent tonique marqué par U+0301 après la voyelle accentuée (pas d'accent sur ё ni sur les mots d'une syllabe), "fr": "...", "alt": [...],
- pour un nom : "g": "m"|"f"|"n"|"pl", "f": {"sgGen": génitif singulier accentué, "plNom": nominatif pluriel accentué, "plGen": génitif pluriel accentué},
- pour un verbe : "v": {"asp": "i"|"p", "partner": partenaire d'aspect, "conj": "1"|"2"|"mixte"|"irr", "pres": [6 formes accentuées du présent (imperfectif) ou du futur (perfectif) : я, ты, он, мы, вы, они], "past": [masculin, féminin, neutre, pluriel accentués], "status": "reg" (régulier) | "alt" (alternance consonantique à la 1re personne) | "rad" (radical modifié) | "irr" (irrégulier), "irr": [indices des formes irrégulières à apprendre]},
- pour un adjectif : "a": {"forms": [masculin, féminin, neutre, pluriel au nominatif, accentués], "comp": comparatif},
- "n": [["code", "remarque courte en français"]] seulement s'il y a une vraie irrégularité à retenir (codes : "genre", "pluriel", "voyelle", "rad", "alt", "irr", "passe", "comp").}
-Si le mot russe donné n'est pas en forme de dictionnaire, ramène-le à cette forme. Si l'élément n'est pas un mot de vocabulaire, ignore-le.
-Réponds uniquement en JSON : {"items": [fiches dans le même ordre]}.
-Éléments : ${JSON.stringify(items)}`, { modelTier: 'complex' });
-  const arr = (r && r.items) || (Array.isArray(r) ? r : []);
-  return arr.map(cleanEntry).filter(Boolean);
-}
-
 // ---------- add (batch / photo / manual)
 const AddUI = { mode: 'text', text: '', list: '', rows: null, busy: false };
 function renderAdd(v) {
@@ -1159,8 +1155,12 @@ Réponds uniquement en JSON : {"items":[{"ru":"...","fr":"..."}]}`, { images: [b
   } else {
     body.innerHTML = `<label class="field">Mot russe<input type="text" id="mru" lang="ru" autocapitalize="off" spellcheck="false" placeholder="книга"></label>
       <label class="field">Traduction française (avec l’article pour un nom)<input type="text" id="mfr" placeholder="un livre"></label>
-      <button class="btn primary wide" type="button" id="mgo">Chercher et préparer la fiche</button>`;
-    $('#mgo').onclick = () => { const ru = $('#mru').value.trim(), fr = $('#mfr').value.trim(); if (ru || fr) analyse([{ ru, fr }]); };
+      <details><summary>Le mot n’est dans aucun dictionnaire ?</summary><div class="stack" style="gap:10px;padding-top:6px">
+        <p class="small muted">Ces deux champs servent seulement si le mot est introuvable. Recopie ce qu’indique ton professeur.</p>
+        <div class="row"><label class="field grow">Classe de mots<select id="mt"><option value="n">nom</option><option value="v">verbe</option><option value="a">adjectif</option><option value="o">autre</option></select></label>
+        <label class="field grow">Genre (pour un nom)<select id="mg"><option value="m">masculin</option><option value="f">féminin</option><option value="n">neutre</option><option value="pl">pluriel seulement</option></select></label></div></div></details>
+      <button class="btn primary wide" type="button" id="mgo">Chercher dans le dictionnaire</button>`;
+    $('#mgo').onclick = () => { const ru = $('#mru').value.trim(), fr = $('#mfr').value.trim(); if (ru || fr) analyse([{ ru, fr, manual: { t: $('#mt').value, g: $('#mg').value } }]); };
   }
   if (A.rows) drawRows();
 }
@@ -1184,61 +1184,62 @@ async function shrinkImage(file) {
 }
 async function analyse(items) {
   const A = AddUI;
-  A.rows = items.map(x => ({ ...x, status: 'wait', e: null, keep: true }));
+  const expanded = [];
+  for (const x of items) { if (x.ru && isCyr(x.ru)) expandRu(x.ru, x.fr).forEach(y => expanded.push({ ...x, ...y })); else expanded.push(x); }
+  A.rows = expanded.map(x => ({ ...x, status: 'wait', e: null, keep: true, via: '' }));
   drawRows();
   for (const r of A.rows) {
     if (r.ru) {
-      const found = await findRu(r.ru);
-      if (found.length) { r.e = found[0]; r.alts = found.slice(1); r.status = D.byId.has(r.e.id) || S.words[r.e.id] ? 'found' : 'ext'; }
+      const res = await lookupRu(r.ru);
+      if (res.entries.length) { r.e = res.entries[0]; r.alts = res.entries.slice(1); r.via = res.via; r.status = 'dict'; if (res.via) r.fr = ''; }
+      else if (r.manual && r.fr) { r.e = { id: 'u' + now().toString(36) + Math.random().toString(36).slice(2, 6), t: r.manual.t, ru: plain(r.ru).toLowerCase(), acc: r.ru, fr: r.fr, src: 'user', ...(r.manual.t === 'n' ? { g: r.manual.g, gs: 'user' } : {}) }; r.status = 'user'; }
       else r.status = 'missing';
     } else if (r.fr) {
-      const k = normFr(r.fr); const kc = noAcc(stripDet(stripPar(k)));
+      const kc = noAcc(stripDet(stripPar(normFr(r.fr))));
       const cands = D.core.filter(e => [e.fr, ...(e.alt || [])].some(x => noAcc(stripDet(normFr(stripPar(x)))) === kc));
-      if (cands.length) { r.e = cands[0]; r.alts = cands.slice(1, 4); r.status = 'found'; }
+      if (cands.length) { r.e = cands[0]; r.alts = cands.slice(1, 4); r.status = 'dict'; r.fr = ''; }
       else r.status = 'missing';
     } else r.status = 'missing';
     drawRows();
   }
-  // ext words need a French prompt: keep the teacher's when given, otherwise ask Claude in one batch
-  const needFr = A.rows.filter(r => r.status === 'ext' && !r.fr);
+  // a word from the full dictionary without a French translation on the sheet: Claude proposes one, clearly marked
+  const needFr = A.rows.filter(r => r.status === 'dict' && !r.fr && !r.e.fr);
   if (needFr.length && Store.sample) {
     needFr.forEach(r => r.status = 'translating'); drawRows();
     const t = await translateWithClaude(needFr.map(r => r.e)) || [];
-    needFr.forEach(r => { const m = t.find(x => x && x.id === r.e.id); r.status = 'ext'; if (m) { r.claudeFr = m.fr; r.claudeAlt = m.alt || []; if (r.e.t === 'n' && !r.e.g && ['m', 'f', 'n', 'pl'].includes(m.g)) r.e.g = m.g; } });
-  }
-  const missing = A.rows.filter(r => r.status === 'missing');
-  if (missing.length && Store.sample) {
-    missing.forEach(r => r.status = 'enriching'); drawRows();
-    for (let i = 0; i < missing.length; i += 12) {
-      const chunk = missing.slice(i, i + 12);
-      const ents = await enrichWithClaude(chunk.map(r => ({ ru: r.ru, fr: r.fr }))) || [];
-      chunk.forEach((r, j) => { const e = ents[j]; if (e) { r.e = e; r.status = 'claude'; } else r.status = 'missing'; });
-      drawRows();
-    }
+    needFr.forEach(r => { const m = t.find(x => x && x.id === r.e.id); r.status = 'dict'; if (m && m.fr) { r.claudeFr = m.fr; r.claudeAlt = m.alt || []; } });
   }
   drawRows();
 }
+function trSource(r) {
+  if (r.fr) return ['feuille', r.fr];
+  if (r.e && r.e.fr) return [D.byId.has(r.e.id) && !(S.words[r.e.id] && S.words[r.e.id].tsrc) ? 'banque' : (r.e.tsrc || (r.e.src === 'claude' ? 'claude' : 'banque')), r.e.fr];
+  if (r.claudeFr) return ['claude', r.claudeFr];
+  return ['', ''];
+}
+const TR_LABEL = { feuille: 'traduction de ta feuille', banque: 'traduction de la banque', claude: 'traduction proposée par Claude, à vérifier', user: 'saisie par toi' };
 function drawRows() {
   const A = AddUI; const box = $('#arows'); if (!box || !A.rows) return;
-  const label = { wait: '<span class="spinner"></span>', found: '<span class="status-dot ok"></span> fiche vérifiée', ext: '<span class="status-dot ok"></span> fiche du dictionnaire', claude: '<span class="status-dot claude"></span> fiche rédigée par Claude', missing: '<span class="status-dot ko"></span> introuvable', translating: '<span class="spinner"></span> traduction…', enriching: '<span class="spinner"></span> Claude rédige…' };
-  const ready = A.rows.filter(r => r.e && r.keep && !['wait', 'translating', 'enriching'].includes(r.status));
+  const ready = A.rows.filter(r => r.e && r.keep && !['wait', 'translating'].includes(r.status) && trSource(r)[1]);
+  const gram = r => r.status === 'wait' ? '<span class="spinner"></span>' : r.status === 'translating' ? '<span class="spinner"></span> traduction…'
+    : r.status === 'user' ? '<span class="status-dot claude"></span> saisi par toi'
+    : r.status === 'missing' ? '<span class="status-dot ko"></span> absent du dictionnaire'
+    : r.via ? `<span class="status-dot ok"></span> forme de « ${esc(plain(r.e.ru))} »` : '<span class="status-dot ok"></span> dans le dictionnaire';
   box.innerHTML = `<section class="sheet stack"><div class="row"><h2 class="grow">${A.rows.length} ligne${A.rows.length > 1 ? 's' : ''}</h2><button class="btn ghost" type="button" id="aclear">Effacer</button></div>
     <div class="list">${A.rows.map((r, i) => {
-      const e = r.e; const fr = r.fr || (e && e.fr) || r.claudeFr || '';
-      return `<div class="item" style="grid-template-columns:auto 1fr auto"><input type="checkbox" data-keep="${i}" ${r.keep && e ? 'checked' : ''} ${e ? '' : 'disabled'} aria-label="Garder" style="width:20px;height:20px;accent-color:var(--blue)">
+      const e = r.e; const [ts, fr] = trSource(r);
+      return `<div class="item" style="grid-template-columns:auto 1fr auto"><input type="checkbox" data-keep="${i}" ${r.keep && e && fr ? 'checked' : ''} ${e && fr ? '' : 'disabled'} aria-label="Garder" style="width:20px;height:20px;accent-color:var(--blue)">
         <span class="stack" style="gap:2px;min-width:0"><span class="ru" lang="ru">${esc(e ? showStress(e.acc || e.ru) : (r.ru || '—'))} ${e ? gBadge(e) : ''}</span>
-        <span class="fr">${fr ? frHtml(fr) : (r.fr ? esc(r.fr) : '')}${r.alts?.length ? ` <button type="button" class="btn ghost small" data-alt="${i}" style="min-height:28px;padding:2px 6px">autre sens (${r.alts.length})</button>` : ''}</span>
-        ${r.status === 'missing' ? `<span class="small muted">${esc(r.ru || r.fr)} : ${Store.sample ? 'pas trouvé, même avec Claude.' : PWA ? 'pas dans le dictionnaire. Ajoute-le depuis ta page Claude, qui rédige la fiche, puis copie-le ici.' : 'pas dans la base. Ajoute-le via « Un mot » quand Claude est disponible.'}</span>` : ''}</span>
-        <span class="small muted" style="text-align:right">${label[r.status] || ''}</span></div>`;
+        <span class="fr">${fr ? frHtml(fr) : (e ? '<span style="color:var(--red)">pas de traduction : tape-la avec « Un mot »</span>' : esc(r.fr || ''))}${r.alts?.length ? ` <button type="button" class="btn ghost small" data-alt="${i}" style="min-height:28px;padding:2px 6px">autre sens (${r.alts.length})</button>` : ''}</span>
+        ${r.via ? `<span class="small muted">Sur la feuille : ${esc(r.ru)}, une forme déclinée ou conjuguée de ${esc(plain(e.ru))}.</span>` : ''}
+        ${r.status === 'missing' ? `<span class="small muted">${esc(r.ru || r.fr)} n’est dans aucun des dictionnaires. Vérifie l’orthographe ; si le mot est juste, ajoute-le avec « Un mot » en indiquant toi-même son genre.</span>` : ''}</span>
+        <span class="small muted" style="text-align:right;display:flex;flex-direction:column;gap:2px;align-items:flex-end"><span>${gram(r)}</span>${fr ? `<span style="${ts === 'claude' ? 'color:var(--amber)' : ''}">${TR_LABEL[ts] || ''}</span>` : ''}</span></div>`;
     }).join('')}</div>
     <button class="btn primary wide" type="button" id="aadd" ${ready.length ? '' : 'disabled'}>Ajouter ${ready.length} mot${ready.length > 1 ? 's' : ''} à « ${esc(A.list)} »</button>
     ${PWA ? '' : `<button class="btn wide" type="button" id="acopy" ${ready.length ? '' : 'disabled'}>Ajouter et copier pour l’appli hors ligne</button><div id="acopyhold"></div>`}
-    <dl class="legend"><dt><span class="status-dot ok"></span> fiche vérifiée</dt><dd>Mot parmi les 4 900 plus courants. Accent, genre et conjugaison viennent du dictionnaire, la traduction française a été relue.</dd>
-    <dt><span class="status-dot ok"></span> fiche du dictionnaire</dt><dd>Mot moins courant. Accent, genre et conjugaison viennent du dictionnaire ; seule la traduction française est proposée par Claude, sauf si tu l’as donnée.</dd>
-    <dt><span class="status-dot claude"></span> fiche rédigée par Claude</dt><dd>Mot absent du dictionnaire (expression, mot rare). Toute la fiche est écrite par Claude : vérifie-la avec ton professeur.</dd></dl>
-    <p class="small muted">Tu peux corriger une traduction plus tard depuis l’onglet Mots.</p></section>`;
+    <p class="small muted">Accent, genre et conjugaison viennent toujours du dictionnaire. Seule la traduction française peut venir de ta feuille, de la banque ou de Claude, comme indiqué à droite de chaque mot.</p></section>`;
   box.querySelectorAll('[data-keep]').forEach(c => c.onchange = () => { A.rows[+c.dataset.keep].keep = c.checked; drawRows(); });
-  box.querySelectorAll('[data-alt]').forEach(b => b.onclick = () => { const r = A.rows[+b.dataset.alt]; const all = [r.e, ...r.alts]; r.e = all[1]; r.alts = [...all.slice(2), all[0]]; r.status = D.byId.has(r.e.id) ? 'found' : r.e.src === 'claude' ? 'claude' : 'ext'; drawRows(); });
+  box.querySelectorAll('[data-alt]').forEach(b => b.onclick = () => { const r = A.rows[+b.dataset.alt]; const all = [r.e, ...r.alts]; r.e = all[1]; r.alts = [...all.slice(2), all[0]]; r.status = 'dict'; drawRows(); });
   $('#aclear').onclick = () => { A.rows = null; A.text = ''; render(); };
   const acopy = $('#acopy');
   if (acopy) acopy.onclick = () => {
@@ -1264,8 +1265,9 @@ function addReady(ready, list) {
       let e = r.e; const teacherFr = r.fr;
       if (D.byId.has(e.id) && !teacherFr) { addCard(e.id, list); ids.push(e.id); continue; }
       e = structuredClone(e);
-      if (teacherFr) { if (e.fr && normFr(e.fr) !== normFr(teacherFr)) e.alt = [...new Set([stripPar(e.fr), ...(e.alt || [])])]; e.fr = teacherFr; }
-      else if (!e.fr && r.claudeFr) { e.fr = r.claudeFr; e.alt = r.claudeAlt; e.src = 'claude'; }
+      if (teacherFr) { if (e.fr && normFr(e.fr) !== normFr(teacherFr)) e.alt = [...new Set([stripPar(e.fr), ...(e.alt || [])])]; e.fr = teacherFr; e.tsrc = 'feuille'; }
+      else if (!e.fr && r.claudeFr) { e.fr = r.claudeFr; e.alt = r.claudeAlt; e.tsrc = 'claude'; }
+      else if (e.src === 'user') e.tsrc = 'user';
       if (!e.fr) continue;
       addCard(e.id, list, e); ids.push(e.id);
     }
@@ -1332,7 +1334,33 @@ document.addEventListener('keydown', ev => {
   render();
   await Store.init();
   render();
+  repairWords().catch(() => {});
 })();
+async function repairWords() {
+  let fixed = 0;
+  const GRAM = ['t', 'acc', 'g', 'gs', 'gd', 'f', 'v', 'a', 'n', 'c', 'en'];
+  for (const [id, w] of Object.entries({ ...S.words })) {
+    if (!w || w.src === 'user') continue;
+    if (/^[nvao]\d+$/.test(id)) { // a dictionary word saved with older data: refresh its grammar
+      const fresh = D.byId.get(id) || await extEntry(id);
+      if (!fresh) continue;
+      const merged = { ...fresh, fr: w.fr || fresh.fr, alt: w.alt || fresh.alt || [], tsrc: w.tsrc || (w.src === 'claude' ? 'claude' : 'feuille') };
+      if (D.byId.has(id) && normFr(merged.fr) === normFr(fresh.fr)) { delete S.words[id]; Store.saveWord(id); fixed++; continue; }
+      if (GRAM.some(k => JSON.stringify(w[k]) !== JSON.stringify(fresh[k]))) { S.words[id] = merged; addFrIndex(merged); Store.saveWord(id); fixed++; }
+      continue;
+    }
+    if (/^c/.test(id)) { // an old sheet written by Claude: replace it with the dictionary entry
+      const res = await lookupRu(w.ru);
+      const target = res.entries[0];
+      if (!target) continue;
+      const card = S.cards[id];
+      if (!D.byId.has(target.id)) { if (res.via) continue; const copy = structuredClone(target); copy.fr = w.fr; copy.alt = w.alt || []; copy.tsrc = 'claude'; if (!copy.fr) continue; S.words[target.id] = copy; addFrIndex(copy); Store.saveWord(target.id); }
+      if (card && !S.cards[target.id]) { S.cards[target.id] = card; Store.saveCard(target.id); }
+      delete S.cards[id]; Store.saveCard(id); delete S.words[id]; Store.saveWord(id); fixed++;
+    }
+  }
+  if (fixed) { renderSync(); toast(`${fixed} mot${fixed > 1 ? 's' : ''} mis à jour à partir du dictionnaire`, 5000); if (tab !== 'review' || !Session.cur) render(); }
+}
 })();
 </script>
 
