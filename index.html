@@ -1,0 +1,1345 @@
+<!doctype html>
+<html lang="fr" data-app="pwa">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#2a4fa3">
+<meta name="description" content="Cahier de révision du vocabulaire russe, utilisable hors ligne.">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<style>
+:root { color-scheme: light; padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px); }
+body { margin: 0; font: 14px system-ui, sans-serif; }
+img { max-width: 100%; }
+[hidden] { display: none !important; }
+</style>
+</head>
+<body>
+<title>Тетрадь de russe</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Golos+Text:wght@400;500;600;700&family=PT+Serif:ital,wght@0,400;0,700;1,400&family=PT+Mono&display=swap">
+<style>
+/* Layout: a school exercise book (тетрадь) — squared paper, red margin rule, ink-blue writing; one column, bottom tab bar. */
+:root {
+  --paper: #f5f7fa;
+  --sheet: #ffffff;
+  --grid: rgba(64, 108, 168, 0.10);
+  --ink: #1d2433;
+  --muted: #5d6676;
+  --faint: #8a93a3;
+  --line: #d9dfe8;
+  --blue: #2a4fa3;
+  --blue-soft: #e5ecfa;
+  --red: #c93a3a;
+  --red-soft: #fbe9e8;
+  --green: #23855a;
+  --green-soft: #e3f4ec;
+  --amber: #a8660b;
+  --amber-soft: #fbf0dc;
+  --m: #2a63c9; --m-soft: #e2ebfb;
+  --f: #c23c6b; --f-soft: #fbe6ee;
+  --n: #2f8a5d; --n-soft: #e2f3ea;
+  --font-ru: "PT Serif", "Georgia", "Times New Roman", serif;
+  --font-ui: "Golos Text", "Segoe UI", Roboto, system-ui, sans-serif;
+  --font-mono: "PT Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+  --radius: 10px;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --paper: #11151c; --sheet: #181d26; --grid: rgba(130, 160, 220, 0.07);
+  --ink: #e6e9ef; --muted: #a2aab8; --faint: #7c8596; --line: #2a313d;
+  --blue: #8fb0ff; --blue-soft: #1f2b45;
+  --red: #ff8076; --red-soft: #3a1f22;
+  --green: #5fd39b; --green-soft: #17322a;
+  --amber: #f0b45a; --amber-soft: #352a17;
+  --m: #8ab0ff; --m-soft: #1d2a45; --f: #ff8db5; --f-soft: #3b1d2a; --n: #6fd8a2; --n-soft: #173326;
+  color-scheme: dark;
+} }
+:root[data-theme="dark"] {
+  --paper: #11151c; --sheet: #181d26; --grid: rgba(130, 160, 220, 0.07);
+  --ink: #e6e9ef; --muted: #a2aab8; --faint: #7c8596; --line: #2a313d;
+  --blue: #8fb0ff; --blue-soft: #1f2b45;
+  --red: #ff8076; --red-soft: #3a1f22;
+  --green: #5fd39b; --green-soft: #17322a;
+  --amber: #f0b45a; --amber-soft: #352a17;
+  --m: #8ab0ff; --m-soft: #1d2a45; --f: #ff8db5; --f-soft: #3b1d2a; --n: #6fd8a2; --n-soft: #173326;
+  color-scheme: dark;
+}
+html, body { height: 100%; }
+body {
+  background-color: var(--paper);
+  background-image: linear-gradient(var(--grid) 1px, transparent 1px), linear-gradient(90deg, var(--grid) 1px, transparent 1px);
+  background-size: 22px 22px;
+  color: var(--ink);
+  font-family: var(--font-ui);
+  font-size: 15px;
+  line-height: 1.45;
+}
+body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 10; background: var(--paper); }
+* { box-sizing: border-box; }
+button, input, select, textarea { font: inherit; color: inherit; }
+button { cursor: pointer; }
+:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
+
+.app { max-width: 600px; margin: 0 auto; min-height: 100%; display: flex; flex-direction: column;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 0 32px; }
+header.top { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; padding-block: 18px 10px; }
+.brand { font-family: var(--font-ru); font-size: 22px; font-weight: 700; color: var(--blue); letter-spacing: 0.01em; }
+.brand small { font-family: var(--font-ui); font-size: 12px; font-weight: 500; color: var(--muted); margin-left: 6px; letter-spacing: 0.04em; text-transform: uppercase; white-space: nowrap; }
+.sync { font-size: 12px; color: var(--faint); text-align: right; max-width: 45%; }
+.sync.warn { color: var(--amber); }
+
+nav.tabs { background: var(--sheet); border: 1px solid var(--line); border-radius: var(--radius); margin-bottom: 14px; }
+nav.tabs .in { display: grid; grid-template-columns: repeat(4, 1fr); }
+nav.tabs button { background: none; border: 0; padding: 10px 4px 12px; display: flex; flex-direction: column; align-items: center; gap: 3px; color: var(--muted); font-size: 12px; font-weight: 500; }
+nav.tabs button svg { width: 22px; height: 22px; stroke: currentColor; fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+nav.tabs button[aria-current="page"] { color: var(--blue); }
+
+/* sheet = page of the notebook with red margin */
+.sheet { background: var(--sheet); border: 1px solid var(--line); border-radius: var(--radius); position: relative; padding: 18px 18px 18px 30px; }
+.sheet::before { content: ""; position: absolute; top: 0; bottom: 0; left: 18px; width: 1px; background: var(--red); opacity: 0.55; }
+.stack { display: flex; flex-direction: column; gap: 14px; }
+.row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.grow { flex: 1 1 auto; min-width: 0; }
+h2 { font-size: 18px; margin: 0; font-weight: 600; text-wrap: balance; }
+h3 { font-size: 12px; margin: 0; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); }
+p { margin: 0; }
+.muted { color: var(--muted); }
+.small { font-size: 13px; }
+.mono { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+
+.btn { border: 1px solid var(--line); background: var(--sheet); border-radius: 8px; padding: 10px 14px; font-weight: 500; display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 44px; }
+.btn.primary { background: var(--blue); border-color: var(--blue); color: var(--sheet); font-weight: 600; }
+.btn.ghost { border-color: transparent; background: transparent; color: var(--blue); }
+.btn.danger { color: var(--red); }
+.btn.wide { width: 100%; }
+.btn:disabled { opacity: 0.5; cursor: default; }
+.seg { display: flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; background: var(--sheet); }
+.seg button { flex: 1; border: 0; background: none; padding: 10px 6px; font-size: 14px; font-weight: 500; color: var(--muted); min-height: 44px; }
+.seg button + button { border-left: 1px solid var(--line); }
+.seg button[aria-pressed="true"] { background: var(--blue-soft); color: var(--blue); font-weight: 600; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip { border: 1px solid var(--line); background: var(--sheet); border-radius: 999px; padding: 6px 12px; font-size: 13px; color: var(--muted); }
+.chip[aria-pressed="true"] { border-color: var(--blue); color: var(--blue); background: var(--blue-soft); font-weight: 600; }
+input[type="text"], input[type="search"], input[type="number"], textarea, select {
+  width: 100%; border: 1px solid var(--line); background: var(--sheet); border-radius: 8px; padding: 10px 12px; min-height: 44px; }
+textarea { min-height: 150px; resize: vertical; font-family: var(--font-ui); }
+label.field { display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: var(--muted); font-weight: 500; }
+
+.stepper { display: flex; align-items: center; gap: 0; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; background: var(--sheet); }
+.stepper button { border: 0; background: none; width: 44px; height: 44px; font-size: 20px; color: var(--blue); }
+.stepper .cnt-in { border-left: 1px solid var(--line); border-right: 1px solid var(--line); border-radius: 0; }
+
+/* badges */
+.g { display: inline-flex; align-items: center; justify-content: center; min-width: 26px; height: 22px; padding: 0 6px; border-radius: 6px; font-size: 12px; font-weight: 700; letter-spacing: 0.02em; }
+.g.m { color: var(--m); background: var(--m-soft); }
+.g.f { color: var(--f); background: var(--f-soft); }
+.g.n { color: var(--n); background: var(--n-soft); }
+.g.pl, .g.x { color: var(--muted); background: var(--paper); border: 1px solid var(--line); }
+.tag { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; font-weight: 600; padding: 2px 8px; border-radius: 999px; background: var(--paper); border: 1px solid var(--line); color: var(--muted); }
+.tag.irr { color: var(--red); background: var(--red-soft); border-color: transparent; }
+.tag.asp { color: var(--blue); background: var(--blue-soft); border-color: transparent; }
+
+/* review */
+.prompt-card { text-align: center; padding: 26px 18px 22px 30px; display: flex; flex-direction: column; gap: 10px; align-items: center; }
+.prompt-meta { font-size: 12px; color: var(--muted); letter-spacing: 0.06em; text-transform: uppercase; font-weight: 600; }
+.prompt { font-size: 30px; line-height: 1.2; font-weight: 600; text-wrap: balance; overflow-wrap: anywhere; }
+.prompt.ru { font-family: var(--font-ru); font-weight: 700; font-size: 36px; }
+.prompt .par { color: var(--faint); font-weight: 400; font-size: 0.62em; white-space: nowrap; }
+.formq { font-family: var(--font-ru); font-size: 22px; }
+.answer-in { font-size: 22px; text-align: center; font-family: var(--font-ru); }
+.answer-in.fr { font-family: var(--font-ui); }
+.progress { height: 4px; background: var(--line); border-radius: 2px; overflow: hidden; }
+.progress i { display: block; height: 100%; background: var(--blue); width: 0; transition: width .25s; }
+.verdict { display: flex; gap: 10px; align-items: flex-start; padding: 12px 14px; border-radius: 8px; }
+.verdict b { display: block; font-size: 16px; }
+.verdict.ok { background: var(--green-soft); color: var(--green); }
+.verdict.near { background: var(--amber-soft); color: var(--amber); }
+.verdict.bad { background: var(--red-soft); color: var(--red); }
+.verdict .why { color: var(--ink); font-size: 14px; }
+.diff { font-family: var(--font-ru); font-size: 19px; }
+.diff s { color: var(--red); text-decoration-thickness: 2px; }
+.diff ins { color: var(--green); text-decoration: none; border-bottom: 2px solid var(--green); }
+
+.word-head { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.ru-big { font-family: var(--font-ru); font-size: 34px; font-weight: 700; line-height: 1.15; overflow-wrap: anywhere; }
+.speak { width: 44px; height: 44px; border-radius: 50%; border: 1px solid var(--line); background: var(--sheet); display: inline-flex; align-items: center; justify-content: center; color: var(--blue); flex: 0 0 auto; }
+.speak svg { width: 20px; height: 20px; stroke: currentColor; fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.fr-line { font-size: 17px; }
+.fr-line .alt { color: var(--muted); font-size: 14px; }
+.notes { display: flex; flex-direction: column; gap: 8px; }
+.note { border-left: 3px solid var(--red); padding: 4px 0 4px 10px; font-size: 14px; }
+.note.rule { border-left-color: var(--blue); }
+.conj { width: 100%; border-collapse: collapse; font-size: 15px; }
+.conj td { padding: 5px 6px; border-bottom: 1px dashed var(--line); }
+.conj td:first-child { color: var(--muted); width: 34%; font-size: 13px; }
+.conj td.ru { font-family: var(--font-ru); font-size: 17px; }
+.conj tr.hl td.ru { color: var(--red); font-weight: 700; }
+.table-wrap { overflow-x: auto; }
+.facts { display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; font-size: 14px; }
+.facts dt { color: var(--muted); }
+.facts dd { margin: 0; font-family: var(--font-ru); font-size: 16px; }
+
+/* lists */
+.list { display: flex; flex-direction: column; }
+.item { display: grid; grid-template-columns: 1fr auto; gap: 4px 10px; align-items: center; padding: 11px 2px; border-bottom: 1px solid var(--line); background: none; border-left: 0; border-right: 0; border-top: 0; text-align: left; width: 100%; }
+.item .ru { font-family: var(--font-ru); font-size: 18px; font-weight: 700; min-width: 0; overflow-wrap: anywhere; }
+.item .fr { color: var(--muted); font-size: 14px; min-width: 0; overflow-wrap: anywhere; }
+.item .side { display: flex; align-items: center; gap: 8px; justify-content: flex-end; }
+.meter { display: inline-flex; gap: 2px; }
+.meter i { width: 6px; height: 14px; border-radius: 2px; background: var(--line); }
+.meter.l1 i:nth-child(-n+1), .meter.l2 i:nth-child(-n+2), .meter.l3 i:nth-child(-n+3), .meter.l4 i:nth-child(-n+4), .meter.l5 i:nth-child(-n+5) { background: var(--blue); }
+.meter.l1 i:nth-child(1) { background: var(--red); }
+.add-btn { width: 40px; height: 40px; border-radius: 8px; border: 1px solid var(--line); background: var(--sheet); color: var(--blue); font-size: 22px; line-height: 1; }
+.add-btn.done { color: var(--green); border-color: transparent; background: var(--green-soft); font-size: 16px; }
+
+.empty { text-align: left; }
+.empty .ru-hand { font-family: var(--font-ru); font-style: italic; font-size: 26px; color: var(--blue); }
+.stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.stat { background: var(--sheet); border: 1px solid var(--line); border-radius: 8px; padding: 10px; }
+.stat b { display: block; font-family: var(--font-mono); font-size: 22px; font-weight: 400; font-variant-numeric: tabular-nums; }
+.stat span { font-size: 12px; color: var(--muted); }
+.notice { background: var(--ink); color: var(--sheet); padding: 10px 14px; border-radius: 8px; font-size: 14px; margin-bottom: 12px; pointer-events: none; }
+.legend { display: grid; grid-template-columns: auto 1fr; gap: 6px 10px; align-items: baseline; font-size: 13px; }
+.legend dd { margin: 0; color: var(--muted); }
+.cnt-in { width: 72px; min-height: 44px; border: 0; text-align: center; font-family: var(--font-mono); font-size: 17px; background: none; -moz-appearance: textfield; }
+.cnt-in::-webkit-outer-spin-button, .cnt-in::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+.switch { display: flex; align-items: flex-start; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--line); }
+.switch input { width: 20px; height: 20px; margin-top: 2px; accent-color: var(--blue); flex: 0 0 auto; }
+.switch .t { font-weight: 500; }
+.switch .d { font-size: 13px; color: var(--muted); }
+.status-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+.status-dot.ok { background: var(--green); } .status-dot.claude { background: var(--blue); } .status-dot.ko { background: var(--red); }
+.spinner { width: 16px; height: 16px; border: 2px solid var(--line); border-top-color: var(--blue); border-radius: 50%; animation: spin .8s linear infinite; display: inline-block; }
+@keyframes spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .spinner { animation: none; } .progress i { transition: none; } }
+details summary { cursor: pointer; color: var(--blue); font-weight: 500; padding: 6px 0; }
+.credit { font-size: 12px; color: var(--faint); }
+.credit a { color: var(--muted); }
+</style>
+
+<div class="app" id="app">
+  <header class="top">
+    <div class="brand">Тетрадь<small>vocabulaire russe</small></div>
+    <div class="sync" id="sync">Chargement…</div>
+  </header>
+<nav class="tabs" aria-label="Sections">
+  <div class="in">
+    <button type="button" data-tab="review" aria-current="page"><svg viewBox="0 0 24 24"><path d="M4 5h11a3 3 0 0 1 3 3v11H7a3 3 0 0 1-3-3z"/><path d="M8 10h6M8 14h4"/><path d="M18 8h2v11"/></svg>Réviser</button>
+    <button type="button" data-tab="words"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="6"/><path d="m20 20-4.5-4.5"/></svg>Mots</button>
+    <button type="button" data-tab="add"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>Ajouter</button>
+    <button type="button" data-tab="settings"><svg viewBox="0 0 24 24"><path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/></svg>Réglages</button>
+  </div>
+</nav>
+  <div id="notice" class="notice" role="status" hidden></div>
+  <main id="view" class="stack" aria-live="polite">
+    <div class="sheet stack">
+      <h2>Ouverture du cahier…</h2>
+      <p class="muted">Chargement de la banque de vocabulaire (environ 4 900 mots traduits, 54 000 mots au total).</p>
+    </div>
+  </main>
+</div>
+
+
+<script>
+(() => {
+'use strict';
+const PWA = document.documentElement.dataset.app === 'pwa';
+const CLAUDE_PAGE = 'https://claude.ai/artifact/4Fsdkk7nvKg252Bj9sf2QL';
+// ---------------------------------------------------------------- helpers
+const $ = (s, r = document) => r.querySelector(s);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const ACUTE = /́/g;
+const DAY = 86400000;
+const now = () => Date.now();
+const plain = s => String(s || '').replace(ACUTE, '').normalize('NFC');
+const isCyr = s => /[Ѐ-ӿ]/.test(s);
+const lsGet = k => { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : null; } catch (e) { return null; } };
+const lsSet = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} };
+function lev(a, b) {
+  if (a === b) return 0;
+  const m = a.length, n = b.length; if (!m) return n; if (!n) return m;
+  let prev = Array.from({ length: n + 1 }, (_, i) => i), cur = new Array(n + 1);
+  for (let i = 1; i <= m; i++) {
+    cur[0] = i;
+    for (let j = 1; j <= n; j++) cur[j] = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+    [prev, cur] = [cur, prev];
+  }
+  return prev[n];
+}
+function hash(s) { let h = 0; for (const c of s) h = (h * 31 + c.charCodeAt(0)) >>> 0; return h; }
+let noticeTimer;
+function toast(msg, ms = 3200) {
+  const t = document.getElementById('notice'); if (!t) return;
+  t.textContent = msg; t.hidden = false;
+  clearTimeout(noticeTimer); noticeTimer = setTimeout(() => { t.hidden = true; }, ms);
+}
+function toTop() { try { window.scrollTo(0, 0); document.getElementById('app').scrollIntoView({ block: 'start' }); } catch (e) {} }
+function ago(ts) {
+  if (!ts) return 'jamais';
+  const d = (now() - ts) / DAY;
+  if (d < 1 / 24) return 'à l’instant';
+  if (d < 1) return 'il y a ' + Math.round(d * 24) + ' h';
+  if (d < 2) return 'hier';
+  return 'il y a ' + Math.round(d) + ' j';
+}
+const todayLabel = () => new Date().toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' });
+
+// ---------------------------------------------------------------- normalisation
+const normRu = s => plain(s).toLowerCase().replace(/[^Ѐ-ӿ\- ]/g, '').replace(/\s+/g, ' ').trim();
+const stripPar = s => String(s || '').replace(/\s*\([^)]*\)/g, '').trim();
+const normFr = s => String(s || '').toLowerCase().replace(/[’`´]/g, "'").replace(/\s*'\s*/g, "'").replace(/[.!?;:]+$/g, '').replace(/\s+/g, ' ').trim();
+const noAcc = s => s.normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/œ/g, 'oe').replace(/æ/g, 'ae');
+const DET_RE = /^(une |un |des |les |le |la |l'|du |de la |de l'|de |d')/;
+const detOf = s => (s.match(DET_RE) || [''])[0];
+const stripDet = s => s.replace(DET_RE, '').trim();
+const detGender = d => /^(un |le |du )$/.test(d) ? 'm' : /^(une |la |de la )$/.test(d) ? 'f' : '';
+
+// ---------------------------------------------------------------- data
+const D = { core: [], byId: new Map(), byRu: new Map(), byFr: new Map(), extIdx: null, extFiles: {}, extById: new Map() };
+const S = { // user state
+  cards: {},   // id -> card
+  words: {},   // id -> entry (ext / custom)
+  settings: null,
+};
+const DEFAULT_SETTINGS = {
+  show: { g: true, stress: true, conj: true, irr: true, asp: false, adj: false, decl: false, past: false, rules: false },
+  irrQ: true, autoSpeak: true, voice: '', rate: 0.9, speakStress: false,
+  mode: 'fr', count: 20, lists: [], ema: { fr: 12, ru: 8, fm: 9 }, lastList: '',
+};
+function entry(id) { return S.words[id] || D.byId.get(id) || D.extById.get(id) || null; }
+
+async function loadCore() {
+  const r = await fetch('core.json'); D.core = await r.json();
+  for (const e of D.core) indexEntry(e);
+}
+function indexEntry(e) {
+  D.byId.set(e.id, e);
+  const k = normRu(e.ru); if (!D.byRu.has(k)) D.byRu.set(k, []); D.byRu.get(k).push(e.id);
+  addFrIndex(e);
+}
+function addFrIndex(e) {
+  if (!e.fr) return;
+  const k = normFr(e.fr); if (!D.byFr.has(k)) D.byFr.set(k, new Set()); D.byFr.get(k).add(e.id);
+}
+async function loadExtIdx() {
+  if (D.extIdx) return D.extIdx;
+  const t = await (await fetch('ext_idx.txt')).text();
+  D.extIdx = t.split('\n').map(l => { const [id, ru] = l.split('\t'); return { id, ru, k: normRu(ru) }; });
+  return D.extIdx;
+}
+async function loadExtFile(type) {
+  if (D.extFiles[type]) return D.extFiles[type];
+  const p = (async () => {
+    const arr = await (await fetch('ext_' + type + '.json')).json();
+    for (const e of arr) D.extById.set(e.id, e);
+    return arr;
+  })();
+  D.extFiles[type] = p; return p;
+}
+async function extEntry(id) { await loadExtFile(id[0]); return D.extById.get(id) || null; }
+async function findRu(word) { // returns array of entries matching the Russian dictionary form
+  const k = normRu(word); const out = [];
+  for (const id of (D.byRu.get(k) || [])) out.push(entry(id));
+  for (const [id, w] of Object.entries(S.words)) if (normRu(w.ru) === k && !out.find(x => x.id === id)) out.push(w);
+  if (!out.length) {
+    const idx = await loadExtIdx();
+    const k2 = k.replace(/ё/g, 'е');
+    const hits = idx.filter(x => x.k === k || x.k.replace(/ё/g, 'е') === k2).slice(0, 4);
+    for (const h of hits) { const e = await extEntry(h.id); if (e) out.push(e); }
+  }
+  return out;
+}
+
+// ---------------------------------------------------------------- storage (db capability with local fallback)
+const Store = {
+  db: null, uid: null, mode: 'local', exists: new Set(), queue: new Map(), busy: new Set(), sample: null, downloads: null,
+  async init() {
+    const local = lsGet('tetrad-state');
+    if (local) { S.cards = local.cards || {}; S.words = local.words || {}; S.settings = local.settings || null; }
+    if (PWA) { try { navigator.storage && navigator.storage.persist && navigator.storage.persist(); } catch (e) {} }
+    try {
+      const claude = PWA ? null : window.claude;
+      if (claude && claude.use) {
+        const [db, user, sample, downloads] = await Promise.all(['db', 'user', 'sample', 'downloads'].map(n => claude.use(n).catch(() => null)));
+        this.sample = sample; this.downloads = downloads;
+        if (db && user) {
+          const uid = await user.id().catch(() => null);
+          if (uid) {
+            this.db = db; this.uid = uid;
+            const coll = db.collection('data/users/' + uid);
+            const snap = await Promise.race([coll.get(), new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), 10000))]);
+            const remote = { cards: {}, words: {}, settings: null };
+            snap.docs.forEach(d => {
+              this.exists.add(d.id); const v = d.data() || {};
+              if (d.id === 'settings') remote.settings = v.s || null;
+              else if (d.id[0] === 'p') Object.assign(remote.cards, v.c || {});
+              else if (d.id[0] === 'w') Object.assign(remote.words, v.c || {});
+            });
+            for (const k of Object.keys(remote.cards)) if (!remote.cards[k]) delete remote.cards[k];
+            for (const k of Object.keys(remote.words)) if (!remote.words[k]) delete remote.words[k];
+            if (snap.docs.length) { S.cards = remote.cards; S.words = remote.words; S.settings = remote.settings || S.settings; }
+            else if (Object.keys(S.cards).length) { // first sync: push local data up
+              for (const id of Object.keys(S.cards)) this.saveCard(id);
+              for (const id of Object.keys(S.words)) this.saveWord(id);
+            }
+            this.mode = 'cloud';
+          }
+        }
+      }
+    } catch (e) { this.mode = this.db ? 'offline' : 'local'; }
+    S.settings = Object.assign(structuredClone(DEFAULT_SETTINGS), S.settings || {});
+    S.settings.show = Object.assign({}, DEFAULT_SETTINGS.show, S.settings.show || {});
+    S.settings.ema = Object.assign({}, DEFAULT_SETTINGS.ema, S.settings.ema || {});
+    for (const w of Object.values(S.words)) addFrIndex(w);
+    this.cacheLocal();
+    renderSync();
+  },
+  cacheLocal() { lsSet('tetrad-state', { cards: S.cards, words: S.words, settings: S.settings }); },
+  bucket(id) { return hash(id) % 16; },
+  push(doc, key, value) {
+    this.cacheLocal();
+    if (!this.db) return;
+    if (!this.queue.has(doc)) this.queue.set(doc, {});
+    this.queue.get(doc)[key] = value;
+    this.flush(doc);
+  },
+  async flush(doc) {
+    if (this.busy.has(doc) || !this.queue.has(doc)) return;
+    const patch = this.queue.get(doc); this.queue.delete(doc); this.busy.add(doc);
+    const ref = this.db.collection('data/users/' + this.uid).doc(doc);
+    try {
+      if (doc === 'settings') await ref.set({ s: patch.s });
+      else if (this.exists.has(doc)) await ref.update({ c: patch });
+      else { await ref.set({ c: patch }); this.exists.add(doc); }
+      this.mode = 'cloud';
+    } catch (e) {
+      if (e && e.code === 'invalid_argument' && doc !== 'settings' && !this.exists.has(doc)) { /* ignore */ }
+      if (e && e.code === 'quota_exceeded') toast('Espace de sauvegarde plein : exporte une sauvegarde dans Réglages.');
+      // put patch back for retry later
+      const q = this.queue.get(doc) || {}; this.queue.set(doc, Object.assign(patch, q));
+      this.mode = 'offline';
+      setTimeout(() => { this.busy.delete(doc); this.flush(doc); }, 4000 + Math.random() * 2000);
+      renderSync(); return;
+    }
+    this.busy.delete(doc); renderSync();
+    if (this.queue.has(doc)) this.flush(doc);
+  },
+  saveCard(id) { this.push('p' + this.bucket(id), id, S.cards[id] || null); },
+  saveWord(id) { this.push('w' + this.bucket(id), id, S.words[id] || null); },
+  saveSettings() { this.cacheLocal(); if (this.db) { this.queue.set('settings', { s: S.settings }); this.flush('settings'); } },
+};
+function renderSync() {
+  const el = $('#sync'); if (!el) return;
+  const n = Object.keys(S.cards).length;
+  if (Store.mode === 'cloud') { el.className = 'sync'; el.textContent = n + ' mot' + (n > 1 ? 's' : '') + ' · sauvegardé'; }
+  else if (Store.mode === 'offline') { el.className = 'sync warn'; el.textContent = 'Hors ligne · sauvegarde en attente'; }
+  else if (PWA) { el.className = 'sync'; el.textContent = n + ' mot' + (n > 1 ? 's' : '') + ' · sur ce téléphone'; }
+  else { el.className = 'sync warn'; el.textContent = 'Sauvegarde sur cet appareil seulement'; }
+}
+// ---------------------------------------------------------------- transfer between the Claude page and the app
+function transferText(kind, list, ids) {
+  const words = {}; const cards = {};
+  for (const id of ids) { const e = entry(id); if (!e) continue; if (!D.byId.has(id) || S.words[id]) words[id] = e; cards[id] = kind === 'backup' ? S.cards[id] : { l: list || (S.cards[id] && S.cards[id].l) || 'Mes mots' }; }
+  return JSON.stringify(kind === 'backup' ? { app: 'tetrad', v: 1, kind, date: new Date().toISOString(), cards, words, settings: S.settings } : { app: 'tetrad', v: 1, kind, list, cards, words });
+}
+function importData(d) {
+  if (!d || d.app !== 'tetrad') throw new Error('format');
+  let n = 0;
+  for (const [id, w] of Object.entries(d.words || {})) { if (w && !D.byId.has(id) || (w && S.words[id])) { S.words[id] = w; addFrIndex(w); Store.saveWord(id); } else if (w && D.byId.has(id) && normFr(w.fr || '') !== normFr(D.byId.get(id).fr || '')) { S.words[id] = w; addFrIndex(w); Store.saveWord(id); } }
+  for (const [id, c] of Object.entries(d.cards || {})) {
+    if (!c || !entry(id)) continue;
+    if (d.kind === 'words') { if (addCard(id, c.l)) n++; }
+    else { const mine = S.cards[id]; const last = x => Math.max(x?.fr?.last || 0, x?.ru?.last || 0); if (!mine || last(c) >= last(mine)) { S.cards[id] = c; Store.saveCard(id); n++; } }
+  }
+  renderSync(); return n;
+}
+async function copyText(text, okMsg, holder) {
+  try { await navigator.clipboard.writeText(text); toast(okMsg); return; } catch (e) {}
+  if (holder) { holder.innerHTML = `<p class="small muted">Copie automatique impossible ici : sélectionne tout le texte ci-dessous et copie-le.</p><textarea readonly style="min-height:90px">${esc(text)}</textarea>`; const t = holder.querySelector('textarea'); t.focus(); t.select(); }
+  else toast('Copie impossible dans cette vue.');
+}
+
+// ---------------------------------------------------------------- cards & scheduling
+function newDir() { return { lv: 0, n: 0, iv: 0, e: 2.5, due: 0, last: 0, h: '' }; }
+function addCard(id, list, entryObj) {
+  if (entryObj && !D.byId.has(id)) { S.words[id] = entryObj; addFrIndex(entryObj); Store.saveWord(id); }
+  if (S.cards[id]) { if (list && S.cards[id].l !== list) { S.cards[id].l = list; Store.saveCard(id); } return false; }
+  S.cards[id] = { l: list || 'Mes mots', a: now(), fr: newDir(), ru: newDir() };
+  Store.saveCard(id); return true;
+}
+function removeCard(id) {
+  delete S.cards[id]; Store.saveCard(id);
+  if (S.words[id]) { delete S.words[id]; Store.saveWord(id); }
+}
+function levelOf(c) {
+  const v = Math.round(((c.fr?.lv || 0) + (c.ru?.lv || 0)) / 2);
+  return v;
+}
+function stage(lv) { return lv <= 0 ? 0 : lv < 20 ? 1 : lv < 45 ? 2 : lv < 70 ? 3 : lv < 90 ? 4 : 5; }
+const STAGE_NAMES = ['Nouveau', 'Fragile', 'En cours', 'Bien parti', 'Acquis', 'Maîtrisé'];
+function meter(lv) { const s = stage(lv); return `<span class="meter l${s}" title="${STAGE_NAMES[s]}" aria-label="Maîtrise : ${STAGE_NAMES[s]}"><i></i><i></i><i></i><i></i><i></i></span>`; }
+function grade(dir, g) { // SM-2 style with mastery level
+  dir.n = dir.n || 0; dir.e = dir.e || 2.5;
+  if (g >= 3) {
+    dir.n += 1;
+    dir.iv = dir.n === 1 ? 1 : dir.n === 2 ? 3 : Math.round(dir.iv * dir.e * (g === 3 ? 0.8 : 1));
+    dir.e = Math.max(1.3, dir.e + 0.1 - (5 - g) * (0.08 + (5 - g) * 0.02));
+    dir.due = now() + dir.iv * DAY;
+  } else {
+    dir.n = 0; dir.iv = 0; dir.e = Math.max(1.3, dir.e - 0.2); dir.due = now() + 10 * 60000;
+  }
+  dir.lv = Math.max(0, Math.min(100, (dir.lv || 0) + ({ 5: 20, 4: 13, 3: 6, 2: -8, 1: -18, 0: -24 })[g]));
+  dir.last = now();
+  dir.h = ((dir.h || '') + g).slice(-8);
+}
+
+// ---------------------------------------------------------------- display helpers
+function showStress(acc) { return S.settings.show.stress ? acc : plain(acc); }
+function frHtml(fr) { return esc(stripPar(fr)) + (/\(/.test(fr) ? ' <span class="par">' + esc((fr.match(/\([^)]*\)/g) || []).join(' ')) + '</span>' : ''); }
+function gBadge(e) {
+  if (!e || e.t !== 'n' || !S.settings.show.g) return '';
+  const g = e.g || 'x';
+  const label = { m: 'm', f: 'f', n: 'n', pl: 'pl', both: 'm/f', x: '?' }[g] || g;
+  const title = { m: 'masculin', f: 'féminin', n: 'neutre', pl: 'pluriel seulement', both: 'masculin ou féminin' }[g] || 'genre inconnu';
+  return `<span class="g ${g === 'both' ? 'x' : esc(g)}" title="${title}">${label}</span>`;
+}
+const NOTE_TOGGLE = { genre: 'g', indecl: 'g', pluriel: 'irr', voyelle: 'decl', alt: 'irr', rad: 'irr', irr: 'irr', regle: 'rules', passe: 'past', comp: 'adj' };
+function notesFor(e) {
+  return (e.n || []).filter(([k]) => S.settings.show[NOTE_TOGGLE[k] || 'irr']);
+}
+function irregularLabel(e) {
+  if (e.t !== 'v' || !e.v) return '';
+  const st = e.v.status;
+  if (st === 'irr') return '<span class="tag irr">Verbe irrégulier</span>';
+  if (st === 'rad' || st === 'alt') return '<span class="tag irr">Formes irrégulières</span>';
+  if (st === 'pas' && S.settings.show.past) return '<span class="tag irr">Passé irrégulier</span>';
+  return '';
+}
+const CLASS_LABEL = { n: 'nom', v: 'verbe', a: 'adjectif', o: '' };
+const O_LABEL = { conj: 'conjonction', prep: 'préposition', pron: 'pronom', adv: 'adverbe', num: 'numéral', part: 'particule', int: 'interjection' };
+function classLabel(e) { return e.t === 'o' ? (O_LABEL[e.c] || 'mot invariable') : CLASS_LABEL[e.t]; }
+function wordDetail(e, opts = {}) {
+  const sh = S.settings.show; const parts = [];
+  const head = `<div class="word-head"><span class="ru-big" lang="ru">${esc(showStress(e.acc || e.ru))}</span>
+    <button type="button" class="speak" data-speak="${esc(e.acc || e.ru)}" aria-label="Écouter"><svg viewBox="0 0 24 24"><path d="M4 10v4h4l5 4V6L8 10z"/><path d="M16 9a4 4 0 0 1 0 6"/><path d="M18.5 6.5a8 8 0 0 1 0 11"/></svg></button>
+    ${gBadge(e)} ${irregularLabel(e)}
+    ${e.t === 'v' && sh.asp && e.v?.asp ? `<span class="tag asp">${e.v.asp === 'i' ? 'imperfectif' : 'perfectif'}</span>` : ''}</div>`;
+  parts.push(head);
+  if (e.fr) parts.push(`<div class="fr-line">${frHtml(e.fr)}${e.alt?.length ? ` <span class="alt">· ${esc(e.alt.map(stripPar).join(', '))}</span>` : ''}</div>`);
+  const notes = notesFor(e);
+  if (notes.length) parts.push(`<div class="notes">${notes.map(([k, t]) => `<div class="note ${k === 'regle' ? 'rule' : ''}" lang="fr">${esc(t)}</div>`).join('')}</div>`);
+  if (e.t === 'v' && e.v && sh.conj && e.v.pres?.some(Boolean)) {
+    const v = e.v; const conjName = v.conj === '1' ? '1re conjugaison (en -е)' : v.conj === '2' ? '2e conjugaison (en -и)' : v.conj === 'mixte' ? 'conjugaison mixte' : v.conj === 'irr' ? 'verbe irrégulier' : '';
+    const pr = ['я', 'ты', 'он, она', 'мы', 'вы', 'они'];
+    const hl = new Set(sh.irr ? (v.irr || []) : []);
+    let html = `<div class="stack" style="gap:6px"><h3>${esc(v.tense === 'futur' ? 'Futur (verbe perfectif)' : 'Présent')}${conjName ? ' · ' + conjName : ''}</h3><div class="table-wrap"><table class="conj">`;
+    v.pres.forEach((f, i) => { html += `<tr class="${hl.has(i) ? 'hl' : ''}"><td>${pr[i]}</td><td class="ru" lang="ru">${esc(showStress(f))}</td></tr>`; });
+    html += '</table></div></div>';
+    parts.push(html);
+    if (sh.past && v.past?.[0]) parts.push(`<div class="stack" style="gap:6px"><h3>Passé</h3><dl class="facts"><dt>он</dt><dd lang="ru">${esc(showStress(v.past[0]))}</dd><dt>она</dt><dd lang="ru">${esc(showStress(v.past[1]))}</dd><dt>оно</dt><dd lang="ru">${esc(showStress(v.past[2]))}</dd><dt>они</dt><dd lang="ru">${esc(showStress(v.past[3]))}</dd></dl></div>`);
+    if (sh.asp && v.partner) parts.push(`<p class="small"><span class="muted">Partenaire d’aspect (${v.asp === 'i' ? 'perfectif' : 'imperfectif'}) :</span> <span lang="ru" style="font-family:var(--font-ru);font-size:16px">${esc(v.partner)}</span></p>`);
+  }
+  if (e.t === 'a' && e.a && sh.adj && e.a.forms?.[0]) {
+    const f = e.a.forms; parts.push(`<div class="stack" style="gap:6px"><h3>Formes au nominatif</h3><dl class="facts"><dt>masculin</dt><dd lang="ru">${esc(showStress(f[0]))}</dd><dt>féminin</dt><dd lang="ru">${esc(showStress(f[1]))}</dd><dt>neutre</dt><dd lang="ru">${esc(showStress(f[2]))}</dd><dt>pluriel</dt><dd lang="ru">${esc(showStress(f[3]))}</dd>${e.a.comp ? `<dt>comparatif</dt><dd lang="ru">${esc(showStress(e.a.comp))}</dd>` : ''}</dl></div>`);
+  }
+  if (e.t === 'n' && e.f && sh.decl) {
+    const f = e.f; const rows = [];
+    if (f.sgGen) rows.push(['génitif singulier', f.sgGen]);
+    if (f.plNom) rows.push(['nominatif pluriel', f.plNom]);
+    if (f.plGen) rows.push(['génitif pluriel', f.plGen]);
+    if (rows.length) parts.push(`<div class="stack" style="gap:6px"><h3>Autres formes</h3><dl class="facts">${rows.map(([a, b]) => `<dt>${a}</dt><dd lang="ru">${esc(showStress(b))}</dd>`).join('')}</dl></div>`);
+  }
+  if (opts.meta) parts.push(`<p class="small muted">${esc(classLabel(e) || '')}${e.src === 'claude' ? ' · fiche complétée par Claude, à vérifier avec ton professeur' : ''}</p>`);
+  return parts.join('');
+}
+
+// ---------------------------------------------------------------- speech
+const Voice = {
+  voices: [],
+  load() { try { this.voices = speechSynthesis.getVoices().filter(v => /^ru/i.test(v.lang)); } catch (e) { this.voices = []; } },
+  speak(text) {
+    try {
+      if (!('speechSynthesis' in window)) return toast('La lecture audio n’est pas disponible dans ce navigateur. Ouvre la page dans Chrome.');
+      speechSynthesis.cancel();
+      const t = S.settings.speakStress ? String(text).split(',')[0] : plain(String(text).split(',')[0]);
+      const u = new SpeechSynthesisUtterance(t);
+      u.lang = 'ru-RU'; u.rate = S.settings.rate || 0.9;
+      if (!this.voices.length) this.load();
+      const v = this.voices.find(v => v.name === S.settings.voice) || this.voices[0];
+      if (v) u.voice = v;
+      else if (!this._warned) { this._warned = true; toast('Pas de voix russe trouvée. Réglages Android › Synthèse vocale › installe le russe.', 4500); }
+      speechSynthesis.speak(u);
+    } catch (e) {}
+  },
+};
+try { Voice.load(); speechSynthesis.onvoiceschanged = () => Voice.load(); } catch (e) {}
+document.addEventListener('click', ev => { const b = ev.target.closest('[data-speak]'); if (b) Voice.speak(b.dataset.speak); });
+
+// ---------------------------------------------------------------- answer checking
+function synonymsRu(e) { // other Russian words accepted for the same French prompt
+  const out = new Set();
+  const k = normFr(e.fr || '');
+  for (const id of (D.byFr.get(k) || [])) { const w = entry(id); if (w && w.id !== e.id) out.add(normRu(w.ru)); }
+  return out;
+}
+function checkRu(input, e, expectedForm) {
+  const a = normRu(input); const exp = normRu(expectedForm || e.ru);
+  if (!a) return { v: 'bad', why: String(input || '').trim() ? 'La réponse doit être écrite en cyrillique : passe sur le clavier russe.' : 'Aucune réponse.' };
+  if (a === exp) return { v: 'ok' };
+  if (!expectedForm) {
+    if (e.t === 'v' && e.v?.partner && a === normRu(e.v.partner)) return { v: 'ok', why: `Accepté : ${e.v.partner} est le partenaire ${e.v.asp === 'i' ? 'perfectif' : 'imperfectif'} de ce verbe. Le mot révisé est ${plain(e.acc)}.` };
+    if (synonymsRu(e).has(a)) return { v: 'ok', why: `Accepté : ce mot a aussi ce sens. Le mot révisé est ${plain(e.acc)}.` };
+  }
+  if (a.replace(/ё/g, 'е') === exp.replace(/ё/g, 'е')) return { v: 'near', why: exp.includes('ё') ? 'Il faut un ё (deux points) : c’est une autre lettre, qui se prononce [yo] et porte toujours l’accent.' : 'Ce mot s’écrit avec е, pas ё.' };
+  if (exp.length >= 4 && lev(a, exp) === 1) return { v: 'near', why: 'Une lettre de différence.' };
+  if (exp.length >= 8 && lev(a, exp) === 2) return { v: 'near', why: 'Deux lettres de différence.' };
+  return { v: 'bad' };
+}
+function frVariants(e) { return [e.fr, ...(e.alt || [])].filter(Boolean).map(x => normFr(stripPar(x))); }
+function checkFr(input, e) {
+  const a = normFr(stripPar(input));
+  if (!a) return { v: 'bad', why: 'Aucune réponse.' };
+  const vars = frVariants(e);
+  const aCore = stripDet(a);
+  let near = null;
+  for (const x of vars) {
+    if (a === x) return { v: 'ok' };
+    const xCore = stripDet(x);
+    if (aCore === xCore) {
+      const da = detOf(a), dx = detOf(x);
+      if (!da || !dx) return { v: 'ok' };
+      const ga = detGender(da), gx = detGender(dx);
+      if (ga && gx && ga !== gx) { near = near || { v: 'near', why: `Mauvais déterminant : « ${dx.trim()} ${xCore} ».` }; continue; }
+      return { v: 'ok' };
+    }
+    if (noAcc(aCore) === noAcc(xCore)) { near = near || { v: 'near', why: `Accent manquant ou erroné : « ${xCore} ».` }; continue; }
+    if (xCore.length >= 5 && lev(aCore, xCore) === 1) near = near || { v: 'near', why: `Faute d’orthographe : « ${xCore} ».` };
+  }
+  // other dictionary words with the same meaning (e.g. aspect partner) are not relevant in this direction
+  return near || { v: 'bad' };
+}
+function diffHtml(given, expected) {
+  const a = normRu(given) || normFr(given); const b = plain(expected);
+  if (!a) return '';
+  if (lev(a, b.toLowerCase()) > Math.max(2, b.length / 2)) return `<span class="diff"><s>${esc(given)}</s></span>`;
+  // simple per-char comparison for near answers
+  let out = ''; const bl = b.toLowerCase();
+  const n = Math.max(a.length, bl.length);
+  for (let i = 0; i < n; i++) {
+    const x = a[i], y = bl[i];
+    if (x === y) out += esc(x || ''); else { if (x) out += `<s>${esc(x)}</s>`; if (y) out += `<ins>${esc(y)}</ins>`; }
+  }
+  return `<span class="diff">${out}</span>`;
+}
+
+// ---------------------------------------------------------------- views
+let tab = 'review';
+function setTab(t) {
+  tab = t;
+  document.querySelectorAll('nav.tabs button').forEach(b => b.setAttribute('aria-current', b.dataset.tab === t ? 'page' : 'false'));
+  if (t !== 'review') Session.cur = Session.cur && Session.cur.done ? null : Session.cur;
+  Detail.id = null;
+  render(); toTop();
+}
+document.querySelectorAll('nav.tabs button').forEach(b => b.addEventListener('click', () => setTab(b.dataset.tab)));
+const Detail = { id: null };
+function render() {
+  const v = $('#view');
+  if (Detail.id) return renderDetail(v);
+  if (tab === 'review') return Session.cur ? Session.renderCard(v) : renderReviewHome(v);
+  if (tab === 'words') return renderWords(v);
+  if (tab === 'add') return renderAdd(v);
+  if (tab === 'settings') return renderSettings(v);
+}
+function listsOf() { const s = new Set(Object.values(S.cards).map(c => c.l || 'Mes mots')); return [...s]; }
+
+// ---------- review home
+const STARTER = ['n13', 'n81', 'n376', 'n28', 'n58', 'n12', 'n8', 'n33', 'n22', 'n53', 'v4', 'v60', 'v41', 'v3', 'v12', 'a16', 'a14', 'a8', 'o0', 'o35'];
+function renderReviewHome(v) {
+  const ids = Object.keys(S.cards);
+  if (!ids.length) {
+    v.innerHTML = `<section class="sheet stack empty">
+      <p class="ru-hand" lang="ru">Начнём!</p>
+      <h2>Ton cahier est vide pour l’instant</h2>
+      <p class="muted">Ajoute les mots de ton cours, puis reviens ici pour t’entraîner : l’appli t’affiche un mot, tu écris sa traduction, et elle note ta maîtrise selon ta rapidité et tes fautes.</p>
+      <div class="stack" style="gap:8px">
+        <button class="btn primary wide" type="button" id="go-add">Ajouter les mots de mon cours</button>
+        <button class="btn wide" type="button" id="go-bank">Chercher dans la banque de mots</button>
+        <button class="btn ghost wide" type="button" id="starter">Commencer avec 20 mots très courants</button>
+      </div>
+      <p class="small muted">Les 20 mots : дом, мама, папа, вода, книга, друг, день, ночь, город, улица, говорить, читать, писать, знать, жить, хороший, новый, большой, и, да.</p>
+    </section>`;
+    $('#go-add').onclick = () => setTab('add');
+    $('#go-bank').onclick = () => { WordsUI.sub = 'bank'; setTab('words'); };
+    $('#starter').onclick = () => { STARTER.forEach(id => addCard(id, 'Premiers mots')); renderSync(); toast('20 mots ajoutés à la liste « Premiers mots »'); render(); };
+    return;
+  }
+  const st = S.settings; const lists = listsOf();
+  const sel = st.lists.filter(l => lists.includes(l));
+  const pool = ids.filter(id => !sel.length || sel.includes(S.cards[id].l || 'Mes mots'));
+  const t = now();
+  const dirs = st.mode === 'mix' ? ['fr', 'ru'] : [st.mode];
+  const dueCount = pool.filter(id => dirs.some(d => { const c = S.cards[id][d]; return !c || !c.n || c.due <= t; })).length;
+  const mastered = pool.filter(id => levelOf(S.cards[id]) >= 70).length;
+  const fresh = pool.filter(id => !S.cards[id].fr?.last && !S.cards[id].ru?.last).length;
+  v.innerHTML = `<section class="stats">
+      <div class="stat"><b>${pool.length}</b><span>mots choisis</span></div>
+      <div class="stat"><b>${dueCount}</b><span>à revoir en priorité</span></div>
+      <div class="stat"><b>${mastered}</b><span>acquis ou maîtrisés</span></div>
+    </section>
+    <section class="sheet stack">
+      <div class="stack" style="gap:8px"><h3>Sens</h3>
+        <div class="seg" role="group" aria-label="Sens de traduction">
+          <button type="button" data-mode="fr" aria-pressed="${st.mode === 'fr'}">Français → русский</button>
+          <button type="button" data-mode="ru" aria-pressed="${st.mode === 'ru'}">русский → Français</button>
+          <button type="button" data-mode="mix" aria-pressed="${st.mode === 'mix'}">Les deux</button>
+        </div></div>
+      <div class="row"><div class="grow stack" style="gap:2px"><h3>Nombre de mots</h3><p class="small muted">Tu peux enchaîner autant de séances que tu veux.</p></div>
+        <div class="row" style="gap:6px"><div class="stepper"><button type="button" id="cnt-m" aria-label="Moins">−</button><input id="cnt" class="cnt-in" type="number" inputmode="numeric" min="1" max="9999" value="${st.count >= 9999 ? '' : st.count}" placeholder="tous" aria-label="Nombre de mots"><button type="button" id="cnt-p" aria-label="Plus">+</button></div><button type="button" class="chip" id="cnt-all" aria-pressed="${st.count >= 9999}">Tous</button></div></div>
+      ${lists.length > 1 ? `<div class="stack" style="gap:8px"><h3>Listes</h3><div class="chips">${lists.map(l => `<button type="button" class="chip" data-list="${esc(l)}" aria-pressed="${sel.includes(l)}">${esc(l)}</button>`).join('')}</div><p class="small muted">${sel.length ? '' : 'Aucune liste cochée : toutes les listes sont utilisées.'}</p></div>` : ''}
+      ${st.irrQ && st.show.irr ? `<p class="small muted">Les verbes à formes irrégulières ajoutent aussi des questions de conjugaison (désactivable dans Réglages).</p>` : ''}
+      <button class="btn primary wide" type="button" id="start">Commencer la révision</button>
+      ${fresh ? `<p class="small muted">${fresh} mot${fresh > 1 ? 's' : ''} jamais révisé${fresh > 1 ? 's' : ''}.</p>` : ''}
+    </section>`;
+  v.querySelectorAll('[data-mode]').forEach(b => b.onclick = () => { st.mode = b.dataset.mode; Store.saveSettings(); render(); });
+  const steps = [5, 10, 15, 20, 30, 40, 50, 75, 100, 150, 200];
+  const showCnt = () => { $('#cnt').value = st.count >= 9999 ? '' : st.count; $('#cnt-all').setAttribute('aria-pressed', st.count >= 9999); };
+  const setCnt = n => { st.count = n; Store.saveSettings(); showCnt(); };
+  $('#cnt-m').onclick = () => { const cur = st.count >= 9999 ? 201 : st.count; const lower = steps.filter(x => x < cur); setCnt(lower.length ? lower[lower.length - 1] : 1); };
+  $('#cnt-p').onclick = () => { if (st.count >= 9999) return; const up = steps.find(x => x > st.count); setCnt(up || 9999); };
+  $('#cnt').onchange = e => { const n = parseInt(e.target.value, 10); if (n > 0) setCnt(Math.min(9999, n)); else setCnt(9999); };
+  $('#cnt').onkeydown = e => { if (e.key === 'Enter') { e.preventDefault(); e.target.blur(); } };
+  $('#cnt-all').onclick = () => setCnt(st.count >= 9999 ? 20 : 9999);
+  v.querySelectorAll('[data-list]').forEach(b => b.onclick = () => { const l = b.dataset.list; st.lists = st.lists.includes(l) ? st.lists.filter(x => x !== l) : [...st.lists, l]; Store.saveSettings(); render(); });
+  $('#start').onclick = () => { const n = parseInt($('#cnt').value, 10); if (n > 0 && n !== st.count) setCnt(Math.min(9999, n)); Session.start(pool); };
+}
+
+// ---------- session
+const Session = {
+  cur: null,
+  start(pool) {
+    const st = S.settings; const t = now();
+    const items = [];
+    const prio = (d) => !d || !d.last ? 1e15 + 0 : (d.due <= t ? d.due : 2e15 + d.due); // overdue first, then new, then by due date
+    for (const id of pool) {
+      const c = S.cards[id]; const e = entry(id); if (!e) continue;
+      let dir = st.mode;
+      if (dir === 'mix') dir = (c.fr?.lv || 0) <= (c.ru?.lv || 0) ? (Math.random() < 0.7 ? 'fr' : 'ru') : (Math.random() < 0.7 ? 'ru' : 'fr');
+      const d = c[dir] || newDir();
+      items.push({ id, dir, p: d.last ? (d.due <= t ? d.due : 2e15 + d.due) : 1e15 + (c.a || 0) });
+    }
+    items.sort((a, b) => a.p - b.p);
+    let n = Math.min(st.count, items.length);
+    const chosen = items.slice(0, n);
+    // irregular forms questions
+    if (st.irrQ && st.show.irr && st.show.conj) {
+      const verbs = chosen.map(x => entry(x.id)).filter(e => e && e.t === 'v' && e.v?.irr?.length && e.v.pres?.[0]);
+      const k = Math.max(1, Math.round(chosen.length / 4));
+      verbs.sort((a, b) => ((S.cards[a.id].fm?.due || 0) - (S.cards[b.id].fm?.due || 0)));
+      verbs.slice(0, k).forEach(e => {
+        const idx = e.v.irr[Math.floor(Math.random() * e.v.irr.length)];
+        chosen.push({ id: e.id, dir: 'fm', form: idx });
+      });
+    }
+    // light shuffle keeping priority roughly (never puts a conjugation question right after its own word)
+    for (let i = chosen.length - 1; i > 0; i--) { const j = Math.max(0, i - 1 - Math.floor(Math.random() * 4)); [chosen[i], chosen[j]] = [chosen[j], chosen[i]]; }
+    if (!chosen.length) return toast('Aucun mot dans cette sélection.');
+    this.cur = { q: chosen, i: 0, results: [], requeued: new Set(), phase: 'ask', done: false, fb: null };
+    render(); toTop();
+  },
+  item() { return this.cur.q[this.cur.i]; },
+  renderCard(v) {
+    const s = this.cur;
+    if (s.done) return this.renderSummary(v);
+    if (s.phase === 'result' && s.fb) return this.renderResult(v);
+    const it = this.item(); const e = entry(it.id);
+    if (!e) { s.i++; return render(); }
+    const pct = Math.round(100 * s.i / s.q.length);
+    const PR = ['я', 'ты', 'он / она', 'мы', 'вы', 'они'];
+    let promptHtml, meta, ph, inputLang;
+    if (it.dir === 'fr') {
+      meta = 'Traduis en russe';
+      const asp = S.settings.show.asp && e.t === 'v' && e.v?.asp ? ` <span class="tag asp">${e.v.asp === 'i' ? 'imperf.' : 'perf.'}</span>` : '';
+      promptHtml = `<div class="prompt" lang="fr">${frHtml(e.fr || '?')}${asp}</div>`;
+      ph = e.t === 'n' ? 'au nominatif' : e.t === 'v' ? 'à l’infinitif' : e.t === 'a' ? 'au masculin' : 'en russe'; inputLang = 'ru';
+    } else if (it.dir === 'ru') {
+      meta = 'Traduis en français';
+      promptHtml = `<div class="prompt ru" lang="ru">${esc(showStress(e.acc || e.ru))}</div>`;
+      ph = 'en français'; inputLang = 'fr';
+    } else {
+      meta = 'Conjugue · ' + (e.v.tense === 'futur' ? 'futur' : 'présent');
+      promptHtml = `<div class="prompt ru" lang="ru">${esc(showStress(e.acc))}</div><div class="formq" lang="ru">${PR[it.form]} …</div><p class="small muted">${frHtml(e.fr || '')}</p>`;
+      ph = 'forme conjuguée'; inputLang = 'ru';
+    }
+    v.innerHTML = `<div class="row"><button class="btn ghost" type="button" id="quit">‹ Arrêter</button><span class="grow"></span><span class="mono small muted">${s.i + 1} / ${s.q.length}</span></div>
+      <div class="progress" aria-hidden="true"><i style="width:${pct}%"></i></div>
+      <section class="sheet prompt-card"><div class="prompt-meta">${meta}</div>${promptHtml}</section>
+      <form class="stack" id="ans-form" autocomplete="off">
+        <input id="ans" type="text" class="answer-in ${inputLang === 'fr' ? 'fr' : ''}" lang="${inputLang}" placeholder="${esc(ph)}" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" enterkeyhint="done" aria-label="Ta réponse">
+        <div class="row"><button class="btn grow" type="button" id="giveup">Je ne sais pas</button><button class="btn primary grow" type="submit">Valider</button></div>
+      </form>`;
+    $('#quit').onclick = () => { s.done = true; render(); toTop(); };
+    const inp = $('#ans'); setTimeout(() => inp.focus(), 30);
+    s.t0 = performance.now();
+    $('#ans-form').onsubmit = ev => { ev.preventDefault(); this.answer(inp.value, false); };
+    $('#giveup').onclick = () => this.answer('', true);
+  },
+  answer(text, gaveUp) {
+    const s = this.cur; const it = this.item(); const e = entry(it.id); const c = S.cards[it.id];
+    const secs = (performance.now() - s.t0) / 1000;
+    let res;
+    let expected;
+    if (it.dir === 'fr') { expected = e.acc || e.ru; res = gaveUp ? { v: 'gave' } : checkRu(text, e); }
+    else if (it.dir === 'ru') { expected = e.fr; res = gaveUp ? { v: 'gave' } : checkFr(text, e); }
+    else { expected = e.v.pres[it.form]; res = gaveUp ? { v: 'gave' } : checkRu(text, e, expected); }
+    const st = S.settings; const ema = st.ema[it.dir] || 10;
+    const expLen = plain(it.dir === 'ru' ? stripPar(e.fr) : expected).length;
+    const expectedSecs = ema * (expLen + 5) / 12;
+    let g, label, cls;
+    if (res.v === 'ok') {
+      const r = secs / expectedSecs;
+      g = r < 0.9 ? 5 : r < 1.7 ? 4 : 3;
+      label = g === 5 ? 'Juste' : g === 4 ? 'Juste' : 'Juste, mais lent'; cls = 'ok';
+      st.ema[it.dir] = Math.round((0.85 * ema + 0.15 * Math.min(secs, ema * 3)) * 10) / 10;
+    } else if (res.v === 'near') { g = 3; label = 'Presque'; cls = 'near'; }
+    else if (res.v === 'gave') { g = 0; label = 'Réponse'; cls = 'bad'; }
+    else { g = 1; label = 'Faux'; cls = 'bad'; }
+    if (!c[it.dir]) c[it.dir] = newDir();
+    const before = JSON.stringify(c[it.dir]);
+    grade(c[it.dir], g);
+    Store.saveCard(it.id);
+    s.results.push({ id: it.id, dir: it.dir, form: it.form, g, given: text, before });
+    if (g <= 1 && !s.requeued.has(it.id + it.dir)) { // see it again later in this session
+      s.requeued.add(it.id + it.dir);
+      s.q.splice(Math.min(s.q.length, s.i + 4), 0, { ...it, again: true });
+    }
+    const timeNote = res.v === 'ok' ? `<span class="mono small" style="opacity:.75">${secs.toFixed(1)} s</span>` : '';
+    const expHtml = it.dir === 'ru' ? frHtml(expected) : `<span lang="ru" style="font-family:var(--font-ru)">${esc(showStress(expected))}</span>`;
+    const given = text.trim();
+    s.fb = { cls, label, timeNote, canOverride: res.v !== 'ok' && res.v !== 'gave',
+      why: res.v !== 'ok' ? `${given && res.v !== 'gave' ? `Tu as écrit ${diffHtml(given, it.dir === 'ru' ? stripPar(expected) : expected)}<br>` : ''}Réponse attendue : ${expHtml}${res.why ? '<br>' + esc(res.why) : ''}` : (res.why ? esc(res.why) : ''),
+      before, speak: it.dir === 'fm' ? expected : (e.acc || e.ru) };
+    s.phase = 'result';
+    try { document.activeElement && document.activeElement.blur(); } catch (err) {}
+    Store.saveSettings();
+    this.renderResult($('#view'));
+    if (st.autoSpeak) Voice.speak(s.fb.speak);
+    toTop();
+  },
+  renderResult(v) {
+    const s = this.cur; const it = this.item(); const e = entry(it.id); const c = S.cards[it.id]; const fb = s.fb;
+    const pct = Math.round(100 * (s.i + 1) / s.q.length);
+    v.innerHTML = `<div class="row"><button class="btn ghost" type="button" id="quit">‹ Arrêter</button><span class="grow"></span><span class="mono small muted">${s.i + 1} / ${s.q.length}</span></div>
+      <div class="progress" aria-hidden="true"><i style="width:${pct}%"></i></div>
+      <div class="verdict ${fb.cls}"><div class="grow"><b>${fb.label} ${fb.timeNote}</b>${fb.why ? `<div class="why">${fb.why}</div>` : ''}</div></div>
+      <div class="row">${fb.canOverride ? `<button class="btn grow" type="button" id="override">J’avais juste</button>` : ''}<button class="btn primary grow" type="button" id="next">Suivant</button></div>
+      <section class="sheet stack">${wordDetail(e)}</section>`;
+    $('#quit').onclick = () => { s.done = true; render(); toTop(); };
+    $('#next').onclick = () => this.next();
+    const ov = $('#override');
+    if (ov) ov.onclick = () => {
+      c[it.dir] = JSON.parse(fb.before); grade(c[it.dir], 4); Store.saveCard(it.id);
+      s.results[s.results.length - 1].g = 4;
+      const j = s.q.findIndex((x, k) => k > s.i && x.id === it.id && x.dir === it.dir && x.again); if (j > 0) s.q.splice(j, 1);
+      toast('Compté comme juste'); this.next();
+    };
+    try { $('#next').focus({ preventScroll: true }); } catch (err) {}
+  },
+  next() { const s = this.cur; s.i++; s.phase = 'ask'; s.fb = null; if (s.i >= s.q.length) s.done = true; render(); toTop(); },
+  renderSummary(v) {
+    const s = this.cur; const res = s.results;
+    const ok = res.filter(r => r.g >= 4).length, near = res.filter(r => r.g === 3).length, bad = res.filter(r => r.g <= 2).length;
+    const missed = [...new Set(res.filter(r => r.g <= 3 && r.dir !== 'fm').map(r => r.id))];
+    v.innerHTML = `<section class="sheet stack"><h2>Séance terminée</h2>
+      <div class="stats"><div class="stat"><b>${ok}</b><span>justes</span></div><div class="stat"><b>${near}</b><span>presque ou lents</span></div><div class="stat"><b>${bad}</b><span>à retravailler</span></div></div>
+      <div class="list">${res.map(r => { const e = entry(r.id); if (!e) return ''; const c = S.cards[r.id];
+        return `<div class="item"><div class="stack" style="gap:0"><span class="ru" lang="ru">${esc(showStress(r.dir === 'fm' ? e.v.pres[r.form] : e.acc))}</span><span class="fr">${r.dir === 'fm' ? 'conjugaison · ' + ['я','ты','он/она','мы','вы','они'][r.form] : frHtml(e.fr || '')}</span></div><div class="side"><span class="tag" style="color:${r.g >= 4 ? 'var(--green)' : r.g === 3 ? 'var(--amber)' : 'var(--red)'}">${r.g >= 4 ? 'juste' : r.g === 3 ? 'presque' : r.g === 0 ? 'pas trouvé' : 'faux'}</span>${meter(levelOf(c || {}))}</div></div>`; }).join('')}</div>
+      <div class="stack" style="gap:8px">${missed.length ? `<button class="btn primary wide" type="button" id="again">Revoir les ${missed.length} mot${missed.length > 1 ? 's' : ''} ratés</button>` : ''}
+      <button class="btn wide ${missed.length ? '' : 'primary'}" type="button" id="new">Nouvelle séance</button></div></section>`;
+    if (missed.length) $('#again').onclick = () => Session.start(missed);
+    $('#new').onclick = () => { this.cur = null; render(); toTop(); };
+  },
+};
+
+// ---------- words (my words + bank)
+const WordsUI = { sub: 'mine', q: '', list: '', sort: 'recent', bankType: '', bankQ: '', claudeHits: null, busy: false, limit: 60 };
+function renderWords(v) {
+  const W = WordsUI;
+  v.innerHTML = `<div class="seg" role="group" aria-label="Vue"><button type="button" data-sub="mine" aria-pressed="${W.sub === 'mine'}">Mes mots (${Object.keys(S.cards).length})</button><button type="button" data-sub="bank" aria-pressed="${W.sub === 'bank'}">Banque de mots</button></div><div id="wbody" class="stack"></div>`;
+  v.querySelectorAll('[data-sub]').forEach(b => b.onclick = () => { W.sub = b.dataset.sub; W.limit = 60; render(); });
+  if (W.sub === 'mine') renderMine($('#wbody')); else renderBank($('#wbody'));
+}
+function renderMine(el) {
+  const W = WordsUI; const lists = listsOf();
+  el.innerHTML = `<input type="search" id="mq" placeholder="Chercher dans mes mots (russe ou français)" value="${esc(W.q)}" aria-label="Chercher dans mes mots">
+    <div class="row"><select id="ml" class="grow" aria-label="Liste"><option value="">Toutes les listes</option>${lists.map(l => `<option ${W.list === l ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select>
+    <select id="ms" class="grow" aria-label="Tri"><option value="recent" ${W.sort === 'recent' ? 'selected' : ''}>Ajoutés récemment</option><option value="weak" ${W.sort === 'weak' ? 'selected' : ''}>Les moins maîtrisés</option><option value="last" ${W.sort === 'last' ? 'selected' : ''}>Révisés il y a longtemps</option></select></div>
+    <div class="list" id="mlist"></div>`;
+  const draw = () => {
+    const q = W.q.trim(); const qr = normRu(q), qf = noAcc(normFr(q));
+    let ids = Object.keys(S.cards).filter(id => entry(id));
+    if (W.list) ids = ids.filter(id => (S.cards[id].l || 'Mes mots') === W.list);
+    if (q) ids = ids.filter(id => { const e = entry(id); return (qr && normRu(e.ru).includes(qr)) || (qf && noAcc(normFr(e.fr || '')).includes(qf)); });
+    const last = id => Math.max(S.cards[id].fr?.last || 0, S.cards[id].ru?.last || 0);
+    ids.sort(W.sort === 'weak' ? (a, b) => levelOf(S.cards[a]) - levelOf(S.cards[b]) : W.sort === 'last' ? (a, b) => last(a) - last(b) : (a, b) => (S.cards[b].a || 0) - (S.cards[a].a || 0));
+    const shown = ids.slice(0, W.limit);
+    $('#mlist').innerHTML = ids.length ? shown.map(id => { const e = entry(id); const c = S.cards[id];
+      return `<button type="button" class="item" data-open="${esc(id)}"><span class="stack" style="gap:0;min-width:0"><span class="ru" lang="ru">${esc(showStress(e.acc || e.ru))}</span><span class="fr">${frHtml(e.fr || '')}</span></span><span class="side">${gBadge(e)}<span class="small muted">${ago(last(id))}</span>${meter(levelOf(c))}</span></button>`; }).join('') + (ids.length > shown.length ? `<button class="btn ghost" type="button" id="more">Afficher plus (${ids.length - shown.length})</button>` : '')
+      : `<p class="muted" style="padding:16px 0">${Object.keys(S.cards).length ? 'Aucun mot ne correspond.' : 'Aucun mot pour l’instant. Ajoute ceux de ton cours depuis l’onglet Ajouter.'}</p>`;
+    const more = $('#more'); if (more) more.onclick = () => { W.limit += 100; draw(); };
+    el.querySelectorAll('[data-open]').forEach(b => b.onclick = () => openWord(b.dataset.open));
+  };
+  $('#mq').oninput = e => { W.q = e.target.value; draw(); };
+  $('#ml').onchange = e => { W.list = e.target.value; draw(); };
+  $('#ms').onchange = e => { W.sort = e.target.value; draw(); };
+  draw();
+}
+function openWord(id) { if (!entry(id)) return; Detail.id = id; render(); toTop(); }
+function renderDetail(v) {
+  const id = Detail.id; const e = entry(id); const c = S.cards[id];
+  if (!e) { Detail.id = null; return render(); }
+  const lists = listsOf();
+  const close = () => { Detail.id = null; render(); toTop(); };
+  const dirInfo = (d, name) => d && d.last ? `<dt>${name}</dt><dd style="font-family:var(--font-ui);font-size:14px">${STAGE_NAMES[stage(d.lv)]} · révisé ${ago(d.last)} · prochaine révision conseillée ${d.due <= now() ? 'maintenant' : 'dans ' + Math.max(1, Math.round((d.due - now()) / DAY)) + ' j'}</dd>` : `<dt>${name}</dt><dd style="font-family:var(--font-ui);font-size:14px">pas encore révisé</dd>`;
+  v.innerHTML = `<div class="row"><button class="btn ghost" type="button" data-close>‹ Retour</button><span class="grow"></span><h3>${esc(classLabel(e) || 'mot')}</h3></div>
+    <section class="sheet stack">${wordDetail(e, { meta: true })}</section>
+    ${c ? `<section class="sheet stack"><h3>Ma progression</h3><dl class="facts">${dirInfo(c.fr, 'FR → RU')}${dirInfo(c.ru, 'RU → FR')}${c.fm?.last ? dirInfo(c.fm, 'Conjugaison') : ''}</dl>
+    <label class="field">Consigne en français (ce qui s’affiche en révision)<input type="text" id="edfr" value="${esc(e.fr || '')}"></label>
+    <label class="field">Liste<input type="text" id="edl" list="dl-lists" value="${esc(c.l || 'Mes mots')}"><datalist id="dl-lists">${lists.map(l => `<option value="${esc(l)}">`).join('')}</datalist></label>
+    <div class="row"><button class="btn primary grow" type="button" id="save">Enregistrer</button><button class="btn grow" type="button" id="reset">Remettre à zéro</button></div>
+    <div id="delzone"><button class="btn danger wide" type="button" id="del">Retirer de mes mots</button></div></section>` : `<button class="btn primary wide" type="button" id="addone">Ajouter à mes mots</button>`}`;
+  v.querySelectorAll('[data-close]').forEach(b => b.onclick = close);
+  if (c) {
+    $('#save').onclick = () => {
+      const fr = $('#edfr').value.trim(); const l = $('#edl').value.trim() || 'Mes mots';
+      if (fr && fr !== e.fr) { const copy = structuredClone(e); copy.fr = fr; S.words[id] = copy; addFrIndex(copy); Store.saveWord(id); }
+      if (l !== c.l) { c.l = l; Store.saveCard(id); }
+      toast('Enregistré'); close();
+    };
+    $('#reset').onclick = () => { c.fr = newDir(); c.ru = newDir(); c.fm = newDir(); Store.saveCard(id); toast('Progression remise à zéro'); close(); };
+    $('#del').onclick = () => {
+      $('#delzone').innerHTML = `<div class="row"><span class="grow small">Retirer ce mot et sa progression ?</span><button class="btn" type="button" id="no">Annuler</button><button class="btn danger" type="button" id="yes">Retirer</button></div>`;
+      $('#no').onclick = () => render(); $('#yes').onclick = () => { removeCard(id); toast('Mot retiré'); close(); };
+    };
+  } else {
+    $('#addone').onclick = async () => { await addFromBank(id); close(); };
+  }
+}
+async function addFromBank(id, list) {
+  const e = entry(id); if (!e) return;
+  list = list || S.settings.lastList || 'Mes mots';
+  if (D.byId.has(id)) { addCard(id, list); toast('Ajouté à « ' + list + ' »'); renderSync(); return true; }
+  // extended bank word: needs a French prompt
+  let fr = e.fr;
+  if (!fr) {
+    const t = await translateWithClaude([e]);
+    if (t && t[0]) { e.fr = t[0].fr; e.alt = t[0].alt; e.src = 'claude'; fr = e.fr; if (e.t === 'n' && !e.g && ['m', 'f', 'n', 'pl'].includes(t[0].g)) e.g = t[0].g; }
+  }
+  if (!fr) { toast(PWA ? 'Ce mot n’a pas encore de traduction française. Ajoute-le via Ajouter › Un mot en tapant sa traduction.' : 'Impossible d’obtenir la traduction française. Ajoute le mot depuis l’onglet Ajouter en la saisissant.', 4500); return false; }
+  addCard(id, list, structuredClone(e)); toast('Ajouté à « ' + list + ' »'); renderSync(); return true;
+}
+function renderBank(el) {
+  const W = WordsUI;
+  el.innerHTML = `<input type="search" id="bq" placeholder="Chercher un mot (français ou russe)" value="${esc(W.bankQ)}" aria-label="Chercher dans la banque">
+    <div class="chips" role="group" aria-label="Classe de mots">${[['', 'Tous'], ['n', 'Noms'], ['v', 'Verbes'], ['a', 'Adjectifs'], ['o', 'Autres']].map(([k, l]) => `<button type="button" class="chip" data-bt="${k}" aria-pressed="${W.bankType === k}">${l}</button>`).join('')}</div>
+    <div class="row small"><span class="muted">Ajouter dans la liste</span><input type="text" id="blist" class="grow" list="dl-bl" value="${esc(S.settings.lastList || 'Mes mots')}" style="min-height:36px;padding:6px 10px" aria-label="Liste de destination"><datalist id="dl-bl">${listsOf().map(l => `<option value="${esc(l)}">`).join('')}</datalist></div>
+    <div id="bres" class="stack"></div>`;
+  let timer;
+  $('#bq').oninput = e => { W.bankQ = e.target.value; W.claudeHits = null; W.limit = 60; clearTimeout(timer); timer = setTimeout(draw, 180); };
+  el.querySelectorAll('[data-bt]').forEach(b => b.onclick = () => { W.bankType = b.dataset.bt; W.limit = 60; render(); });
+  $('#blist').onchange = e => { S.settings.lastList = e.target.value.trim() || 'Mes mots'; Store.saveSettings(); };
+  async function draw() {
+    const box = $('#bres'); if (!box) return;
+    const q = W.bankQ.trim(); const T = W.bankType;
+    let hits = [];
+    if (!q) {
+      hits = D.core.filter(e => !T || e.t === T);
+      box.innerHTML = `<p class="small muted">Les ${hits.length} mots traduits, du plus fréquent au moins fréquent. Tape un mot pour chercher aussi dans les 54 000 mots de la base complète.</p><div class="list" id="blist2"></div>`;
+    } else if (isCyr(q)) {
+      const k = normRu(q);
+      hits = D.core.filter(e => (!T || e.t === T) && normRu(e.ru).startsWith(k));
+      box.innerHTML = `<div class="list" id="blist2"></div><p class="small muted" id="extnote"><span class="spinner"></span> Recherche dans la base complète…</p>`;
+      loadExtIdx().then(async idx => {
+        if (W.bankQ.trim() !== q) return;
+        const ext = idx.filter(x => (!T || x.id[0] === T) && x.k.startsWith(k)).slice(0, 25);
+        const types = [...new Set(ext.map(x => x.id[0]))];
+        await Promise.all(types.map(loadExtFile));
+        if (W.bankQ.trim() !== q) return;
+        const extHits = ext.map(x => D.extById.get(x.id)).filter(Boolean);
+        const note = $('#extnote'); if (note) note.innerHTML = extHits.length ? `<b>${extHits.length}</b> mot${extHits.length > 1 ? 's' : ''} de la base complète (sans traduction française : ${PWA ? 'pour en ajouter un, utilise Ajouter › Un mot en tapant sa traduction, ou ta page Claude' : 'elle sera demandée à Claude à l’ajout'}).` : 'Rien d’autre dans la base complète.';
+        if (extHits.length) { const l2 = document.createElement('div'); l2.className = 'list'; l2.innerHTML = extHits.map(rowHtml).join(''); note.after(l2); bindRows(l2); }
+      });
+    } else {
+      const k = noAcc(normFr(q));
+      const scored = [];
+      for (const e of D.core) {
+        if (T && e.t !== T) continue;
+        const vars = [e.fr, ...(e.alt || [])].map(x => noAcc(normFr(stripPar(x))));
+        let best = 9;
+        vars.forEach((x, i) => { const core = stripDet(x); if (core === k || x === k) best = Math.min(best, i ? 1 : 0); else if (core.startsWith(k)) best = Math.min(best, i ? 3 : 2); else if (core.includes(' ' + k) || core.includes(k)) best = Math.min(best, 4); });
+        if (best < 9) scored.push([best, e.rank, e]);
+      }
+      scored.sort((a, b) => a[0] - b[0] || a[1] - b[1]);
+      hits = scored.map(x => x[2]);
+      box.innerHTML = `<div class="list" id="blist2"></div><div id="claudebox" class="stack"></div>`;
+      drawClaude(q);
+    }
+    const shown = hits.slice(0, W.limit);
+    const list = $('#blist2'); list.innerHTML = shown.map(rowHtml).join('') + (hits.length > shown.length ? `<button class="btn ghost" type="button" id="bmore">Afficher plus (${hits.length - shown.length})</button>` : '') + (q && !hits.length ? '<p class="muted" style="padding:12px 0">Aucun mot traduit ne correspond.</p>' : '');
+    bindRows(list);
+    const more = $('#bmore'); if (more) more.onclick = () => { W.limit += 100; draw(); };
+  }
+  function drawClaude(q) {
+    const box = $('#claudebox'); if (!box) return;
+    if (W.claudeHits && W.claudeHits.q === q) {
+      box.innerHTML = W.claudeHits.items.length ? `<h3>Suggestions de Claude</h3><div class="list">${W.claudeHits.items.map(rowHtml).join('')}</div>` : '<p class="small muted">Claude n’a rien trouvé de plus.</p>';
+      bindRows(box); return;
+    }
+    if (!Store.sample) { box.innerHTML = PWA ? '<p class="small muted">Mot introuvable ? Ta page Claude peut chercher la traduction et rédiger la fiche.</p>' : '<p class="small muted">La recherche avec Claude n’est pas disponible dans cette vue.</p>'; return; }
+    box.innerHTML = `<button class="btn wide" type="button" id="askc">Demander à Claude les mots russes pour « ${esc(q)} »</button>`;
+    $('#askc').onclick = async () => {
+      box.innerHTML = '<p class="small muted"><span class="spinner"></span> Claude cherche…</p>';
+      const items = await frenchSearchWithClaude(q);
+      W.claudeHits = { q, items: items || [] }; drawClaude(q);
+    };
+  }
+  function rowHtml(e) {
+    const has = !!S.cards[e.id];
+    return `<div class="item"><button type="button" class="stack" data-open="${esc(e.id)}" style="gap:0;min-width:0;background:none;border:0;text-align:left;padding:0"><span class="ru" lang="ru">${esc(showStress(e.acc || e.ru))}</span><span class="fr">${e.fr ? frHtml(e.fr) : `<span lang="en">${esc(e.en || '')}</span> <span class="small">(anglais)</span>`}</span></button><span class="side">${gBadge(e)}<button type="button" class="add-btn ${has ? 'done' : ''}" data-add="${esc(e.id)}" aria-label="${has ? 'Déjà dans mes mots' : 'Ajouter à mes mots'}">${has ? '✓' : '+'}</button></span></div>`;
+  }
+  function bindRows(root) {
+    root.querySelectorAll('[data-open]').forEach(b => b.onclick = () => openWord(b.dataset.open));
+    root.querySelectorAll('[data-add]').forEach(b => b.onclick = async () => {
+      if (S.cards[b.dataset.add]) return;
+      b.innerHTML = '<span class="spinner"></span>';
+      const ok = await addFromBank(b.dataset.add, ($('#blist')?.value || '').trim() || 'Mes mots');
+      if (ok) { b.classList.add('done'); b.textContent = '✓'; } else b.textContent = '+';
+    });
+  }
+  draw();
+}
+
+// ---------------------------------------------------------------- Claude helpers (sample capability)
+const FR_RULES = `Règles pour la consigne française ("fr") :
+- nom : avec article indéfini (« une maison », « un ami »), article partitif pour les noms non comptables (« de l'eau », « du pain »), « des » pour un nom toujours pluriel ;
+- verbe : à l'infinitif (« écrire », « se lever ») ;
+- adjectif : au masculin singulier (« nouveau ») ;
+- si le mot français est ambigu (homonyme), ajoute une courte précision entre parenthèses, qui n'est pas à traduire : « une marche (escalier) », « monter (un meuble) » ;
+- "alt" : 0 à 4 autres traductions françaises correctes, au même format.`;
+async function sampleJson(prompt, opts = {}) {
+  if (!Store.sample) { toast('Claude n’est pas disponible dans cette vue de la page.'); return null; }
+  try { return await Store.sample.json(prompt, Object.assign({ modelTier: 'default' }, opts)); }
+  catch (e) {
+    if (e && e.code === 'not_granted') toast('Accès à Claude refusé pour cette page.');
+    else if (e && e.code === 'rate_limited') toast('Trop de demandes à Claude, réessaie dans une minute.');
+    else toast('Claude n’a pas pu répondre. Réessaie.');
+    return null;
+  }
+}
+async function translateWithClaude(entries) {
+  const list = entries.map(e => ({ id: e.id, ru: e.ru, classe: classLabel(e) || 'autre', genre: e.g || '', anglais: e.en || '' }));
+  const r = await sampleJson(`Tu aides un francophone débutant en russe. Donne la traduction française de chaque mot russe ci-dessous.
+${FR_RULES}
+Pour un nom dont le genre est vide, donne aussi son genre grammatical russe dans "g" ("m", "f", "n", ou "pl" s'il n'existe qu'au pluriel).
+Réponds uniquement en JSON : un tableau d'objets {"id": "...", "fr": "...", "alt": ["..."], "g": "..."} dans le même ordre.
+Mots : ${JSON.stringify(list)}`);
+  return Array.isArray(r) ? r : (r && Array.isArray(r.items) ? r.items : null);
+}
+async function frenchSearchWithClaude(q) {
+  const r = await sampleJson(`Un francophone débutant en russe cherche comment dire « ${q} » en russe.
+Donne 1 à 5 mots russes courants qui traduisent ce mot, du plus courant au moins courant, en forme de dictionnaire (nominatif singulier, infinitif, masculin), sans accent tonique.
+${FR_RULES}
+Réponds uniquement en JSON : {"items":[{"ru":"...","fr":"...","alt":["..."]}]}`);
+  const items = (r && r.items) || [];
+  const out = [];
+  for (const it of items.slice(0, 6)) {
+    if (!it || !it.ru) continue;
+    const found = await findRu(it.ru);
+    if (found.length) {
+      const e = found[0];
+      if (!D.byId.has(e.id) && !e.fr) { e.fr = it.fr; e.alt = it.alt || []; e.src = 'claude'; }
+      out.push(e);
+    } else {
+      const ent = await enrichWithClaude([{ ru: it.ru, fr: it.fr }]);
+      if (ent && ent[0]) out.push(ent[0]);
+    }
+  }
+  return out;
+}
+function guessGender(w) { // fallback when Claude gives no gender: ending rule, left empty when unsure
+  w = plain(w).toLowerCase();
+  if (/мя$/.test(w)) return 'n';
+  if (/[оеё]$/.test(w)) return 'n';
+  if (/[бвгджзйклмнпрстфхцчшщ]$/.test(w)) return 'm';
+  return '';
+}
+function cleanEntry(x) { // validate an entry produced by Claude
+  if (!x || typeof x !== 'object' || !x.ru) return null;
+  const t = ['n', 'v', 'a', 'o'].includes(x.t) ? x.t : 'o';
+  const e = { id: 'c' + now().toString(36) + Math.random().toString(36).slice(2, 6), t, ru: plain(String(x.ru)).trim().toLowerCase(), acc: String(x.acc || x.ru).trim(), fr: String(x.fr || '').trim(), alt: Array.isArray(x.alt) ? x.alt.map(String).slice(0, 5) : [], src: 'claude' };
+  if (t === 'n') { e.g = ['m', 'f', 'n', 'pl'].includes(x.g) ? x.g : guessGender(e.ru); if (x.f && typeof x.f === 'object') e.f = { sgGen: String(x.f.sgGen || ''), plNom: String(x.f.plNom || ''), plGen: String(x.f.plGen || '') }; }
+  if (t === 'v' && x.v && Array.isArray(x.v.pres) && x.v.pres.length === 6) {
+    e.v = { asp: x.v.asp === 'p' ? 'p' : 'i', partner: String(x.v.partner || ''), conj: ['1', '2', 'mixte', 'irr'].includes(String(x.v.conj)) ? String(x.v.conj) : '', tense: x.v.asp === 'p' ? 'futur' : 'présent', pres: x.v.pres.map(String), past: Array.isArray(x.v.past) ? x.v.past.map(String).slice(0, 4) : [], imp: [], status: ['reg', 'rad', 'alt', 'irr'].includes(x.v.status) ? x.v.status : 'reg', irr: Array.isArray(x.v.irr) ? x.v.irr.filter(i => Number.isInteger(i) && i >= 0 && i < 6) : [] };
+  }
+  if (t === 'a' && x.a && Array.isArray(x.a.forms)) e.a = { forms: x.a.forms.map(String).slice(0, 4), short: [], comp: String(x.a.comp || '') };
+  if (Array.isArray(x.n)) e.n = x.n.filter(n => Array.isArray(n) && n.length === 2).map(([k, t]) => [String(k), String(t)]).slice(0, 4);
+  if (!e.fr) return null;
+  return e;
+}
+async function enrichWithClaude(items) { // items: [{ru?, fr?}] not found in the bank
+  const r = await sampleJson(`Tu aides un francophone débutant en russe à créer des fiches de vocabulaire. Pour chaque élément (mot russe et/ou traduction française), produis une fiche complète et exacte.
+${FR_RULES}
+Le genre "g" est obligatoire pour chaque nom.
+Format de chaque fiche :
+{"t": "n" | "v" | "a" | "o" (nom, verbe, adjectif, autre), "ru": forme de dictionnaire sans accent, "acc": la même forme avec l'accent tonique marqué par U+0301 après la voyelle accentuée (pas d'accent sur ё ni sur les mots d'une syllabe), "fr": "...", "alt": [...],
+ pour un nom : "g": "m"|"f"|"n"|"pl", "f": {"sgGen": génitif singulier accentué, "plNom": nominatif pluriel accentué, "plGen": génitif pluriel accentué},
+ pour un verbe : "v": {"asp": "i"|"p", "partner": partenaire d'aspect, "conj": "1"|"2"|"mixte"|"irr", "pres": [6 formes accentuées du présent (imperfectif) ou du futur (perfectif) : я, ты, он, мы, вы, они], "past": [masculin, féminin, neutre, pluriel accentués], "status": "reg" (régulier) | "alt" (alternance consonantique à la 1re personne) | "rad" (radical modifié) | "irr" (irrégulier), "irr": [indices des formes irrégulières à apprendre]},
+ pour un adjectif : "a": {"forms": [masculin, féminin, neutre, pluriel au nominatif, accentués], "comp": comparatif},
+ "n": [["code", "remarque courte en français"]] seulement s'il y a une vraie irrégularité à retenir (codes : "genre", "pluriel", "voyelle", "rad", "alt", "irr", "passe", "comp").}
+Si le mot russe donné n'est pas en forme de dictionnaire, ramène-le à cette forme. Si l'élément n'est pas un mot de vocabulaire, ignore-le.
+Réponds uniquement en JSON : {"items": [fiches dans le même ordre]}.
+Éléments : ${JSON.stringify(items)}`, { modelTier: 'complex' });
+  const arr = (r && r.items) || (Array.isArray(r) ? r : []);
+  return arr.map(cleanEntry).filter(Boolean);
+}
+
+// ---------- add (batch / photo / manual)
+const AddUI = { mode: 'text', text: '', list: '', rows: null, busy: false };
+function renderAdd(v) {
+  const A = AddUI;
+  if (!A.list) A.list = 'Cours du ' + todayLabel();
+  v.innerHTML = `<section class="sheet stack">
+      <h2>Ajouter des mots</h2>
+      <label class="field">Liste (par exemple le cours du jour)<input type="text" id="alist" list="dl-al" value="${esc(A.list)}"><datalist id="dl-al">${listsOf().map(l => `<option value="${esc(l)}">`).join('')}</datalist></label>
+      <div class="seg" role="group" aria-label="Méthode"><button type="button" data-am="text" aria-pressed="${A.mode === 'text'}">Liste</button><button type="button" data-am="photo" aria-pressed="${A.mode === 'photo'}">Photo</button><button type="button" data-am="manual" aria-pressed="${A.mode === 'manual'}">Un mot</button></div>
+      <div id="abody" class="stack"></div>
+    </section>
+    <div id="arows" class="stack"></div>`;
+  $('#alist').oninput = e => { A.list = e.target.value; };
+  v.querySelectorAll('[data-am]').forEach(b => b.onclick = () => { A.mode = b.dataset.am; render(); });
+  const body = $('#abody');
+  if (A.mode === 'text') {
+    body.innerHTML = `<p class="small muted">Un mot par ligne : en russe, en français, ou les deux séparés par un tiret (« книга - un livre »). La traduction de ton professeur est alors gardée telle quelle.</p>
+      <textarea id="atext" placeholder="книга - un livre&#10;писать&#10;une fenêtre" aria-label="Liste de mots">${esc(A.text)}</textarea>
+      ${PWA ? '<p class="small muted">Tu peux aussi coller ici ce que tu as copié depuis ta page Claude.</p>' : ''}
+      <button class="btn primary wide" type="button" id="analyse">Analyser la liste</button>`;
+    $('#atext').oninput = e => { A.text = e.target.value; };
+    $('#analyse').onclick = () => {
+      const t = A.text.trim();
+      if (t.startsWith('{') && t.includes('"tetrad"')) {
+        try { const d = JSON.parse(t); const n = importData(d); toast(n ? `${n} mot${n > 1 ? 's' : ''} importé${n > 1 ? 's' : ''}` : 'Ces mots étaient déjà dans ton cahier.'); A.text = ''; render(); }
+        catch (e) { toast('Ce texte copié est incomplet. Recopie-le depuis ta page Claude.'); }
+        return;
+      }
+      analyse(parseLines(t));
+    };
+  } else if (A.mode === 'photo') {
+    body.innerHTML = `<p class="small muted">Prends en photo la feuille ou le tableau de ton cours. Claude lit les mots, puis tu vérifies la liste avant de l’ajouter.</p>
+      <input type="file" id="aphoto" accept="image/*" aria-label="Photo de la liste">
+      <p class="small muted" id="photonote">${Store.sample ? '' : 'La lecture de photo passe par Claude, qui n’est pas disponible dans cette vue.'}</p>`;
+    if (PWA) body.innerHTML = `<p class="small">La lecture de photo passe par Claude et demande une connexion. Elle se fait sur ta page Claude :</p>
+      <p class="small muted">1. Ouvre ta page Claude, onglet Ajouter › Photo.<br>2. Vérifie la liste, puis touche « Copier pour l’appli ».<br>3. Reviens ici : Ajouter › Liste, colle, puis Analyser.</p>
+      <a class="btn primary wide" href="${CLAUDE_PAGE}" target="_blank" rel="noopener">Ouvrir ma page Claude</a>`;
+    if ($('#aphoto')) $('#aphoto').onchange = async ev => {
+      const file = ev.target.files && ev.target.files[0]; if (!file) return;
+      const note = $('#photonote'); note.innerHTML = '<span class="spinner"></span> Claude lit la photo…';
+      const blob = await shrinkImage(file);
+      const r = await sampleJson(`Cette photo vient d'un cours de russe pour francophone débutant (feuille, cahier ou tableau, parfois manuscrit).
+Relève chaque mot ou expression de vocabulaire. Pour chacun donne "ru" (tel qu'écrit, en cyrillique) et "fr" (la traduction française écrite à côté, ou "" s'il n'y en a pas).
+Ignore les consignes, numéros, titres et phrases d'exemple.
+Réponds uniquement en JSON : {"items":[{"ru":"...","fr":"..."}]}`, { images: [blob] });
+      const items = (r && r.items) || [];
+      note.textContent = items.length ? `${items.length} mot${items.length > 1 ? 's' : ''} lu${items.length > 1 ? 's' : ''} sur la photo.` : 'Aucun mot trouvé sur la photo.';
+      if (items.length) analyse(items.map(x => ({ ru: String(x.ru || '').trim(), fr: String(x.fr || '').trim() })).filter(x => x.ru || x.fr));
+    };
+  } else {
+    body.innerHTML = `<label class="field">Mot russe<input type="text" id="mru" lang="ru" autocapitalize="off" spellcheck="false" placeholder="книга"></label>
+      <label class="field">Traduction française (avec l’article pour un nom)<input type="text" id="mfr" placeholder="un livre"></label>
+      <button class="btn primary wide" type="button" id="mgo">Chercher et préparer la fiche</button>`;
+    $('#mgo').onclick = () => { const ru = $('#mru').value.trim(), fr = $('#mfr').value.trim(); if (ru || fr) analyse([{ ru, fr }]); };
+  }
+  if (A.rows) drawRows();
+}
+function parseLines(text) {
+  return text.split(/\n+/).map(l => l.trim()).filter(Boolean).map(l => {
+    const m = l.split(/\s+[-–—:=]\s+|\t/);
+    let ru = '', fr = '';
+    for (const part of m) { if (isCyr(part) && !ru) ru = part.trim(); else if (!isCyr(part) && !fr) fr = part.trim(); }
+    if (m.length === 1) { if (isCyr(l)) ru = l; else fr = l; }
+    return { ru: ru.replace(/^\d+[.)]\s*/, ''), fr };
+  });
+}
+async function shrinkImage(file) {
+  try {
+    const bmp = await createImageBitmap(file);
+    const scale = Math.min(1, 1600 / Math.max(bmp.width, bmp.height));
+    const c = document.createElement('canvas'); c.width = Math.round(bmp.width * scale); c.height = Math.round(bmp.height * scale);
+    c.getContext('2d').drawImage(bmp, 0, 0, c.width, c.height);
+    return await new Promise(res => c.toBlob(b => res(b || file), 'image/jpeg', 0.85));
+  } catch (e) { return file; }
+}
+async function analyse(items) {
+  const A = AddUI;
+  A.rows = items.map(x => ({ ...x, status: 'wait', e: null, keep: true }));
+  drawRows();
+  for (const r of A.rows) {
+    if (r.ru) {
+      const found = await findRu(r.ru);
+      if (found.length) { r.e = found[0]; r.alts = found.slice(1); r.status = D.byId.has(r.e.id) || S.words[r.e.id] ? 'found' : 'ext'; }
+      else r.status = 'missing';
+    } else if (r.fr) {
+      const k = normFr(r.fr); const kc = noAcc(stripDet(stripPar(k)));
+      const cands = D.core.filter(e => [e.fr, ...(e.alt || [])].some(x => noAcc(stripDet(normFr(stripPar(x)))) === kc));
+      if (cands.length) { r.e = cands[0]; r.alts = cands.slice(1, 4); r.status = 'found'; }
+      else r.status = 'missing';
+    } else r.status = 'missing';
+    drawRows();
+  }
+  // ext words need a French prompt: keep the teacher's when given, otherwise ask Claude in one batch
+  const needFr = A.rows.filter(r => r.status === 'ext' && !r.fr);
+  if (needFr.length && Store.sample) {
+    needFr.forEach(r => r.status = 'translating'); drawRows();
+    const t = await translateWithClaude(needFr.map(r => r.e)) || [];
+    needFr.forEach(r => { const m = t.find(x => x && x.id === r.e.id); r.status = 'ext'; if (m) { r.claudeFr = m.fr; r.claudeAlt = m.alt || []; if (r.e.t === 'n' && !r.e.g && ['m', 'f', 'n', 'pl'].includes(m.g)) r.e.g = m.g; } });
+  }
+  const missing = A.rows.filter(r => r.status === 'missing');
+  if (missing.length && Store.sample) {
+    missing.forEach(r => r.status = 'enriching'); drawRows();
+    for (let i = 0; i < missing.length; i += 12) {
+      const chunk = missing.slice(i, i + 12);
+      const ents = await enrichWithClaude(chunk.map(r => ({ ru: r.ru, fr: r.fr }))) || [];
+      chunk.forEach((r, j) => { const e = ents[j]; if (e) { r.e = e; r.status = 'claude'; } else r.status = 'missing'; });
+      drawRows();
+    }
+  }
+  drawRows();
+}
+function drawRows() {
+  const A = AddUI; const box = $('#arows'); if (!box || !A.rows) return;
+  const label = { wait: '<span class="spinner"></span>', found: '<span class="status-dot ok"></span> fiche vérifiée', ext: '<span class="status-dot ok"></span> fiche du dictionnaire', claude: '<span class="status-dot claude"></span> fiche rédigée par Claude', missing: '<span class="status-dot ko"></span> introuvable', translating: '<span class="spinner"></span> traduction…', enriching: '<span class="spinner"></span> Claude rédige…' };
+  const ready = A.rows.filter(r => r.e && r.keep && !['wait', 'translating', 'enriching'].includes(r.status));
+  box.innerHTML = `<section class="sheet stack"><div class="row"><h2 class="grow">${A.rows.length} ligne${A.rows.length > 1 ? 's' : ''}</h2><button class="btn ghost" type="button" id="aclear">Effacer</button></div>
+    <div class="list">${A.rows.map((r, i) => {
+      const e = r.e; const fr = r.fr || (e && e.fr) || r.claudeFr || '';
+      return `<div class="item" style="grid-template-columns:auto 1fr auto"><input type="checkbox" data-keep="${i}" ${r.keep && e ? 'checked' : ''} ${e ? '' : 'disabled'} aria-label="Garder" style="width:20px;height:20px;accent-color:var(--blue)">
+        <span class="stack" style="gap:2px;min-width:0"><span class="ru" lang="ru">${esc(e ? showStress(e.acc || e.ru) : (r.ru || '—'))} ${e ? gBadge(e) : ''}</span>
+        <span class="fr">${fr ? frHtml(fr) : (r.fr ? esc(r.fr) : '')}${r.alts?.length ? ` <button type="button" class="btn ghost small" data-alt="${i}" style="min-height:28px;padding:2px 6px">autre sens (${r.alts.length})</button>` : ''}</span>
+        ${r.status === 'missing' ? `<span class="small muted">${esc(r.ru || r.fr)} : ${Store.sample ? 'pas trouvé, même avec Claude.' : PWA ? 'pas dans le dictionnaire. Ajoute-le depuis ta page Claude, qui rédige la fiche, puis copie-le ici.' : 'pas dans la base. Ajoute-le via « Un mot » quand Claude est disponible.'}</span>` : ''}</span>
+        <span class="small muted" style="text-align:right">${label[r.status] || ''}</span></div>`;
+    }).join('')}</div>
+    <button class="btn primary wide" type="button" id="aadd" ${ready.length ? '' : 'disabled'}>Ajouter ${ready.length} mot${ready.length > 1 ? 's' : ''} à « ${esc(A.list)} »</button>
+    ${PWA ? '' : `<button class="btn wide" type="button" id="acopy" ${ready.length ? '' : 'disabled'}>Ajouter et copier pour l’appli hors ligne</button><div id="acopyhold"></div>`}
+    <dl class="legend"><dt><span class="status-dot ok"></span> fiche vérifiée</dt><dd>Mot parmi les 4 900 plus courants. Accent, genre et conjugaison viennent du dictionnaire, la traduction française a été relue.</dd>
+    <dt><span class="status-dot ok"></span> fiche du dictionnaire</dt><dd>Mot moins courant. Accent, genre et conjugaison viennent du dictionnaire ; seule la traduction française est proposée par Claude, sauf si tu l’as donnée.</dd>
+    <dt><span class="status-dot claude"></span> fiche rédigée par Claude</dt><dd>Mot absent du dictionnaire (expression, mot rare). Toute la fiche est écrite par Claude : vérifie-la avec ton professeur.</dd></dl>
+    <p class="small muted">Tu peux corriger une traduction plus tard depuis l’onglet Mots.</p></section>`;
+  box.querySelectorAll('[data-keep]').forEach(c => c.onchange = () => { A.rows[+c.dataset.keep].keep = c.checked; drawRows(); });
+  box.querySelectorAll('[data-alt]').forEach(b => b.onclick = () => { const r = A.rows[+b.dataset.alt]; const all = [r.e, ...r.alts]; r.e = all[1]; r.alts = [...all.slice(2), all[0]]; r.status = D.byId.has(r.e.id) ? 'found' : r.e.src === 'claude' ? 'claude' : 'ext'; drawRows(); });
+  $('#aclear').onclick = () => { A.rows = null; A.text = ''; render(); };
+  const acopy = $('#acopy');
+  if (acopy) acopy.onclick = () => {
+    const list = (A.list || '').trim() || 'Mes mots';
+    const ids = addReady(ready, list);
+    const text = transferText('words', list, ids);
+    const hold = $('#acopyhold');
+    copyText(text, `${ids.length} mot${ids.length > 1 ? 's' : ''} copié${ids.length > 1 ? 's' : ''}. Dans l’appli : Ajouter › Liste › colle, puis Analyser.`, hold).then(() => { if (!hold.innerHTML) { A.rows = null; A.text = ''; A.list = ''; render(); } });
+  };
+  $('#aadd').onclick = () => {
+    const list = (A.list || '').trim() || 'Mes mots';
+    const before = Object.keys(S.cards).length;
+    addReady(ready, list);
+    const n = Object.keys(S.cards).length - before;
+    S.settings.lastList = list; Store.saveSettings(); renderSync();
+    toast(n ? `${n} mot${n > 1 ? 's' : ''} ajouté${n > 1 ? 's' : ''} à « ${list} »` : 'Ces mots étaient déjà dans ton cahier.');
+    A.rows = null; A.text = ''; A.list = ''; render();
+  };
+}
+function addReady(ready, list) {
+  const ids = [];
+    for (const r of ready) {
+      let e = r.e; const teacherFr = r.fr;
+      if (D.byId.has(e.id) && !teacherFr) { addCard(e.id, list); ids.push(e.id); continue; }
+      e = structuredClone(e);
+      if (teacherFr) { if (e.fr && normFr(e.fr) !== normFr(teacherFr)) e.alt = [...new Set([stripPar(e.fr), ...(e.alt || [])])]; e.fr = teacherFr; }
+      else if (!e.fr && r.claudeFr) { e.fr = r.claudeFr; e.alt = r.claudeAlt; e.src = 'claude'; }
+      if (!e.fr) continue;
+      addCard(e.id, list, e); ids.push(e.id);
+    }
+  return ids;
+}
+
+// ---------- settings
+function renderSettings(v) {
+  const st = S.settings; const sh = st.show;
+  const sw = (key, title, desc, obj = sh) => `<label class="switch"><input type="checkbox" data-sw="${key}" data-obj="${obj === sh ? 'show' : 'root'}" ${obj[key] ? 'checked' : ''}><span class="stack" style="gap:2px"><span class="t">${title}</span><span class="d">${desc}</span></span></label>`;
+  Voice.load();
+  v.innerHTML = `<section class="sheet stack"><h2>Règles affichées</h2><p class="small muted">Active une règle quand ton professeur l’a vue en cours.</p>
+    <div>${sw('g', 'Genre des noms', 'Masculin, féminin ou neutre, avec les pièges (noms en -ь, masculins en -а).')}
+    ${sw('stress', 'Accent tonique', 'Marque la syllabe accentuée (кни́га). Il ne s’écrit pas en russe courant mais change la prononciation.')}
+    ${sw('conj', 'Conjugaison des verbes', 'Groupe (1re conjugaison en -е, 2e en -и) et tableau du présent.')}
+    ${sw('irr', 'Formes irrégulières', 'Verbes irréguliers, radicaux modifiés, alternances, pluriels irréguliers.')}
+    ${sw('irrQ', 'Interroger sur les formes irrégulières', 'Ajoute des questions « я … » sur les verbes concernés.', st)}
+    ${sw('past', 'Passé des verbes', 'Formes он / она / оно / они, et passés irréguliers.')}
+    ${sw('asp', 'Aspect (imperfectif / perfectif)', 'Affiche l’aspect et le verbe partenaire (делать / сделать).')}
+    ${sw('adj', 'Formes de l’adjectif', 'Masculin, féminin, neutre, pluriel, et comparatifs irréguliers.')}
+    ${sw('decl', 'Pluriel et génitif des noms', 'Autres formes du nom et voyelle mobile (отец → отца).')}
+    ${sw('rules', 'Règles de conjugaison', 'Modèles comme -овать → -ую, -авать → -аю, infinitifs en -еть de la 2e conjugaison.')}</div></section>
+    <section class="sheet stack"><h2>Prononciation</h2>
+    ${sw('autoSpeak', 'Lire le mot à la correction', 'La voix russe du téléphone prononce le mot dès que la réponse s’affiche.', st)}
+    <label class="field">Voix<select id="voice">${Voice.voices.length ? Voice.voices.map(x => `<option ${x.name === st.voice ? 'selected' : ''}>${esc(x.name)}</option>`).join('') : '<option>Aucune voix russe détectée</option>'}</select></label>
+    <label class="field">Vitesse<select id="rate">${[[0.7, 'Lente'], [0.9, 'Normale'], [1.05, 'Rapide']].map(([r, l]) => `<option value="${r}" ${st.rate === r ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
+    ${sw('speakStress', 'Transmettre l’accent tonique à la voix', 'Peut corriger l’accent sur certains mots ; certaines voix lisent mal ce signe.', st)}
+    <div class="row"><button class="btn grow" type="button" data-speak="приве́т">Tester : привет</button></div>
+    <p class="small muted">Sans voix russe : Paramètres Android › Système › Langues › Synthèse vocale › moteur Google › Installer les données vocales › Russe. L’audio marche dans Chrome, pas toujours dans l’appli Claude.</p></section>
+    <section class="sheet stack"><h2>Sauvegarde</h2>
+    <p class="small">${PWA ? 'Ta progression est enregistrée sur ce téléphone et fonctionne sans connexion. Exporte une sauvegarde de temps en temps : si tu désinstalles l’appli ou effaces les données de Chrome, elle disparaît.' : Store.mode === 'cloud' ? 'Ta progression est enregistrée avec ton compte Claude : tu la retrouves sur ton téléphone et ton ordinateur.' : 'Ta progression est enregistrée dans ce navigateur seulement. Connecte-toi à Claude pour la retrouver sur tous tes appareils.'}</p>
+    <div class="row"><button class="btn grow" type="button" id="exp">Exporter une sauvegarde</button><label class="btn grow" for="imp">Importer une sauvegarde</label><input type="file" id="imp" accept="application/json,.json" hidden></div>
+    ${PWA ? '' : `<button class="btn wide" type="button" id="copyall">Copier tout mon cahier pour l’appli hors ligne</button><div id="copyhold"></div>`}</section>
+    <section class="stack credit"><p>Vocabulaire : base d’<a href="https://en.openrussian.org" target="_blank" rel="noopener">OpenRussian.org</a> (licence CC BY-SA 4.0), accents, genres et conjugaisons d’origine. Traductions françaises ajoutées pour ce cahier.</p></section>`;
+  v.querySelectorAll('[data-sw]').forEach(c => c.onchange = () => { (c.dataset.obj === 'show' ? st.show : st)[c.dataset.sw] = c.checked; Store.saveSettings(); });
+  $('#voice').onchange = e => { st.voice = e.target.value; Store.saveSettings(); };
+  $('#rate').onchange = e => { st.rate = +e.target.value; Store.saveSettings(); };
+  const ca = $('#copyall'); if (ca) ca.onclick = () => copyText(transferText('backup', '', Object.keys(S.cards)), 'Cahier copié. Dans l’appli : Ajouter › Liste › colle, puis Analyser.', $('#copyhold'));
+  $('#exp').onclick = async () => {
+    const data = JSON.stringify({ app: 'tetrad', v: 1, date: new Date().toISOString(), cards: S.cards, words: S.words, settings: S.settings });
+    const fname = 'tetrad-russe-' + new Date().toISOString().slice(0, 10) + '.json';
+    if (PWA) { const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([data], { type: 'application/json' })); a.download = fname; document.body.appendChild(a); a.click(); a.remove(); toast('Sauvegarde enregistrée dans Téléchargements'); return; }
+    if (Store.downloads) { try { await Store.downloads.save({ filename: fname, data }); toast('Sauvegarde exportée'); return; } catch (e) { if (e && /cancel|declin/i.test(e.code || e.message || '')) return; } }
+    try { await navigator.clipboard.writeText(data); toast('Téléchargement indisponible : sauvegarde copiée dans le presse-papiers.'); } catch (e) { toast('Export impossible dans cette vue.'); }
+  };
+  $('#imp').onchange = async ev => {
+    const f = ev.target.files && ev.target.files[0]; if (!f) return;
+    try {
+      const n = importData(JSON.parse(await f.text()));
+      toast(n + ' mots importés');
+    } catch (e) { toast('Ce fichier n’est pas une sauvegarde du cahier.'); }
+  };
+}
+
+document.addEventListener('keydown', ev => {
+  if (tab === 'review' && Session.cur && !Session.cur.done && ev.key === 'Enter' && document.activeElement?.id === 'next') { ev.preventDefault(); Session.next(); }
+});
+
+// ---------------------------------------------------------------- boot
+(async function boot() {
+  try { await loadCore(); }
+  catch (e) { $('#view').innerHTML = '<section class="sheet stack"><h2>La banque de mots n’a pas pu se charger</h2><p class="muted">Vérifie ta connexion puis recharge la page.</p></section>'; return; }
+  S.settings = Object.assign(structuredClone(DEFAULT_SETTINGS), S.settings || {});
+  render();
+  await Store.init();
+  render();
+})();
+})();
+</script>
+
+<script>
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => { navigator.serviceWorker.register('sw.js').catch(() => {}); });
+}
+</script>
+</body>
+</html>
