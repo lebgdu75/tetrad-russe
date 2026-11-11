@@ -8,4 +8,4 @@ La progression reste sur le téléphone (stockage du navigateur). Aucune donnée
 
 ## Données
 
-Le vocabulaire russe (accents, genres, conjugaisons, déclinaisons) vient de la base d'[OpenRussian.org](https://en.openrussian.org), publiée sous licence [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/). Les genres des noms sont recoupés avec le dictionnaire d'[OpenCorpora](https://opencorpora.org) (CC BY-SA 3.0). Les traductions françaises ajoutées dans `core.json` sont publiées sous la même licence.
+Le vocabulaire russe (accents, genres, conjugaisons, déclinaisons) vient de la base d'[OpenRussian.org](https://en.openrussian.org), publiée sous licence [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/). Les genres des noms sont recoupés avec le dictionnaire d'[OpenCorpora](https://opencorpora.org) (CC BY-SA 3.0). Les traductions françaises viennent de [WikDict](https://www.wikdict.com), tiré du Wiktionnaire (CC BY-SA 3.0). Les traductions françaises ajoutées dans `core.json` sont publiées sous la même licence.

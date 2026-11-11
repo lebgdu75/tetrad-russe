@@ -1,7 +1,7 @@
 // Тетрадь : cache hors ligne
-const VERSION = 'tetrad-8493e31769';
+const VERSION = 'tetrad-0307df71a1';
 const CORE = ['./', 'index.html', 'manifest.webmanifest', 'icon-192.png', 'icon-512.png', 'icon-maskable-512.png', 'core.json', 'ext_idx.txt'];
-const EXT = ['ext_n.json', 'ext_v.json', 'ext_a.json', 'ext_o.json', 'forms.txt'];
+const EXT = ['ext_n.json', 'ext_v.json', 'ext_a.json', 'ext_o.json', 'forms.txt', 'fr_idx.txt'];
 const FONTS = 'tetrad-fonts';
 
 self.addEventListener('install', event => {

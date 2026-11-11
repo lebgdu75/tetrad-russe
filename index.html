@@ -325,6 +325,15 @@ function addFrIndex(e) {
   if (!e.fr) return;
   const k = normFr(e.fr); if (!D.byFr.has(k)) D.byFr.set(k, new Set()); D.byFr.get(k).add(e.id);
 }
+async function loadFrIdx() {
+  if (D.frIdx) return D.frIdx;
+  if (!D.frIdxP) D.frIdxP = (async () => {
+    const t = await (await fetch('fr_idx.txt')).text(); const m = new Map();
+    for (const l of t.split('\n')) { const i = l.indexOf('\t'); if (i > 0) m.set(noAcc(l.slice(0, i)), l.slice(i + 1).split(',')); }
+    D.frIdx = m; return m;
+  })();
+  return D.frIdxP;
+}
 async function loadExtIdx() {
   if (D.extIdx) return D.extIdx;
   const t = await (await fetch('ext_idx.txt')).text();
@@ -555,7 +564,8 @@ function wordDetail(e, opts = {}) {
     ${gBadge(e)} ${irregularLabel(e)}
     ${e.t === 'v' && sh.asp && e.v?.asp ? `<span class="tag asp">${e.v.asp === 'i' ? 'imperfectif' : 'perfectif'}</span>` : ''}</div>`;
   parts.push(head);
-  if (e.fr) parts.push(`<div class="fr-line">${frHtml(e.fr)}${e.alt?.length ? ` <span class="alt">· ${esc(e.alt.map(stripPar).join(', '))}</span>` : ''}</div>`);
+  if (e.fr) { const main = stripDet(normFr(stripPar(e.fr))); const others = [...new Set((e.dl && e.dl.length ? e.dl : (e.alt || [])).map(stripPar).filter(x => stripDet(normFr(x)) !== main))].slice(0, 5);
+    parts.push(`<div class="fr-line">${frHtml(e.fr)}${others.length ? ` <span class="alt">· ${esc(others.join(', '))}</span>` : ''}</div>`); }
   const notes = notesFor(e);
   if (notes.length) parts.push(`<div class="notes">${notes.map(([k, t]) => `<div class="note ${k === 'regle' ? 'rule' : ''}" lang="fr">${esc(t)}</div>`).join('')}</div>`);
   if (e.t === 'v' && e.v && sh.conj && e.v.pres?.some(Boolean)) {
@@ -582,12 +592,12 @@ function wordDetail(e, opts = {}) {
   if (opts.meta) {
     const GS = { 'oc+or': 'OpenCorpora et OpenRussian', oc: 'OpenCorpora', or: 'OpenRussian', user: 'saisi par toi' };
     const GN = { m: 'masculin', f: 'féminin', n: 'neutre', pl: 'pluriel seulement', both: 'genre commun (m ou f selon la personne)' };
-    const tsrc = e.tsrc || (e.src === 'user' ? 'user' : e.src === 'claude' ? 'claude' : 'banque');
+    const tsrc = e.tsrc || (e.src === 'user' ? 'user' : 'dico');
     const rows = [];
     if (e.t === 'n') rows.push(['Genre', e.g ? `${GN[e.g] || e.g} · selon ${GS[e.gs] || 'le dictionnaire'}${e.gd ? ` (OpenRussian indique ${GN[e.gd] || e.gd})` : ''}` : 'absent des deux dictionnaires']);
-    rows.push(['Grammaire', e.src === 'user' ? 'saisie par toi' : 'dictionnaire OpenRussian' + (e.t === 'n' ? ', genre recoupé avec OpenCorpora' : '')]);
-    rows.push(['Traduction', { feuille: 'ta feuille de cours', banque: 'banque du cahier', claude: 'proposée par Claude, à vérifier', user: 'saisie par toi' }[tsrc] || 'banque du cahier']);
-    if (e.en) rows.push(['Sens anglais (dictionnaire)', esc(e.en)]);
+    rows.push(['Grammaire', e.src === 'user' ? 'saisie par toi' : /x/.test(e.id) ? 'dictionnaire OpenCorpora (accent tonique non disponible)' : 'dictionnaire OpenRussian' + (e.t === 'n' ? ', genre recoupé avec OpenCorpora' : '')]);
+    rows.push(['Traduction', { dico: 'dictionnaire WikDict (Wiktionnaire)', partenaire: 'WikDict, via son partenaire d’aspect', recoupe: 'confirmée par les dictionnaires anglais-français et allemand-français', feuille: 'ta feuille de cours', user: 'saisie par toi', claude: 'ancienne proposition de Claude, à vérifier' }[tsrc] || 'dictionnaire']);
+    if (e.dl && e.dl.length) rows.push(['Sens dans le dictionnaire', esc(e.dl.join(', '))]);
     parts.push(`<dl class="facts" style="font-size:13px">${rows.map(([a, b]) => `<dt>${a}</dt><dd style="font-family:var(--font-ui);font-size:13px">${b}</dd>`).join('')}</dl>`);
   }
   return parts.join('');
@@ -969,13 +979,7 @@ async function addFromBank(id, list) {
   const e = entry(id); if (!e) return;
   list = list || S.settings.lastList || 'Mes mots';
   if (D.byId.has(id)) { addCard(id, list); toast('Ajouté à « ' + list + ' »'); renderSync(); return true; }
-  // extended bank word: needs a French prompt
-  let fr = e.fr;
-  if (!fr) {
-    const t = await translateWithClaude([e]);
-    if (t && t[0] && t[0].fr) { e.fr = t[0].fr; e.alt = t[0].alt || []; e.tsrc = 'claude'; fr = e.fr; }
-  }
-  if (!fr) { toast(PWA ? 'Ce mot n’a pas encore de traduction française. Ajoute-le via Ajouter › Un mot en tapant sa traduction.' : 'Impossible d’obtenir la traduction française. Ajoute le mot depuis l’onglet Ajouter en la saisissant.', 4500); return false; }
+  if (!e.fr) { toast('Le dictionnaire ne donne pas de traduction française pour ce mot. Ajoute-le via Ajouter › Un mot en tapant la traduction de ton professeur.', 5000); return false; }
   addCard(id, list, structuredClone(e)); toast('Ajouté à « ' + list + ' »'); renderSync(); return true;
 }
 function renderBank(el) {
@@ -994,11 +998,11 @@ function renderBank(el) {
     let hits = [];
     if (!q) {
       hits = D.core.filter(e => !T || e.t === T);
-      box.innerHTML = `<p class="small muted">Les ${hits.length} mots traduits, du plus fréquent au moins fréquent. Tape un mot pour chercher aussi dans les 54 000 mots de la base complète.</p><div class="list" id="blist2"></div>`;
+      box.innerHTML = `<p class="small muted">Les ${hits.length} mots les plus courants, du plus fréquent au moins fréquent. Tape un mot en russe ou en français pour chercher dans tout le dictionnaire (68 000 mots).</p><div class="list" id="blist2"></div>`;
     } else if (isCyr(q)) {
       const k = normRu(q);
       hits = D.core.filter(e => (!T || e.t === T) && normRu(e.ru).startsWith(k));
-      box.innerHTML = `<div class="list" id="blist2"></div><p class="small muted" id="extnote"><span class="spinner"></span> Recherche dans la base complète…</p>`;
+      box.innerHTML = `<div class="list" id="blist2"></div><p class="small muted" id="extnote"><span class="spinner"></span> Recherche dans tout le dictionnaire…</p>`;
       loadExtIdx().then(async idx => {
         if (W.bankQ.trim() !== q) return;
         const ext = idx.filter(x => (!T || x.id[0] === T) && x.k.startsWith(k)).slice(0, 25);
@@ -1006,7 +1010,7 @@ function renderBank(el) {
         await Promise.all(types.map(loadExtFile));
         if (W.bankQ.trim() !== q) return;
         const extHits = ext.map(x => D.extById.get(x.id)).filter(Boolean);
-        const note = $('#extnote'); if (note) note.innerHTML = extHits.length ? `<b>${extHits.length}</b> mot${extHits.length > 1 ? 's' : ''} de la base complète (sans traduction française : ${PWA ? 'pour en ajouter un, utilise Ajouter › Un mot en tapant sa traduction, ou ta page Claude' : 'elle sera demandée à Claude à l’ajout'}).` : 'Rien d’autre dans la base complète.';
+        const note = $('#extnote'); if (note) note.innerHTML = extHits.length ? `<h3>Mots moins courants</h3>` : '';
         if (extHits.length) { const l2 = document.createElement('div'); l2.className = 'list'; l2.innerHTML = extHits.map(rowHtml).join(''); note.after(l2); bindRows(l2); }
       });
     } else {
@@ -1014,34 +1018,30 @@ function renderBank(el) {
       const scored = [];
       for (const e of D.core) {
         if (T && e.t !== T) continue;
-        const vars = [e.fr, ...(e.alt || [])].map(x => noAcc(normFr(stripPar(x))));
+        const vars = [e.fr, ...(e.dl || [])].map(x => noAcc(normFr(stripPar(x))));
         let best = 9;
-        vars.forEach((x, i) => { const core = stripDet(x); if (core === k || x === k) best = Math.min(best, i ? 1 : 0); else if (core.startsWith(k)) best = Math.min(best, i ? 3 : 2); else if (core.includes(' ' + k) || core.includes(k)) best = Math.min(best, 4); });
+        vars.forEach((x, i) => { const core = stripDet(x); if (core === k || x === k) best = Math.min(best, i ? 1 : 0); else if (k.length >= 4 && core.startsWith(k) && !/[a-z]/.test(core[k.length] || '') ) best = Math.min(best, i ? 3 : 2); else if ((' ' + core + ' ').includes(' ' + k + ' ')) best = Math.min(best, 4); });
         if (best < 9) scored.push([best, e.rank, e]);
       }
       scored.sort((a, b) => a[0] - b[0] || a[1] - b[1]);
       hits = scored.map(x => x[2]);
-      box.innerHTML = `<div class="list" id="blist2"></div><div id="claudebox" class="stack"></div>`;
-      drawClaude(q);
+      box.innerHTML = `<div class="list" id="blist2"></div><div id="frext" class="stack"></div>`;
+      loadFrIdx().then(async idx => {
+        if (W.bankQ.trim() !== q) return;
+        const ids = []; for (const [kk, v] of idx) if (kk === k || kk.startsWith(k + ' ') || kk.endsWith(' ' + k) || kk.includes(' ' + k + ' ')) v.forEach(id => { if (!D.byId.has(id) && (!T || id[0] === T)) ids.push(id); });
+        const uniq = [...new Set(ids)].slice(0, 25);
+        await Promise.all([...new Set(uniq.map(id => id[0]))].map(loadExtFile));
+        if (W.bankQ.trim() !== q) return;
+        const extHits = uniq.map(id => D.extById.get(id)).filter(Boolean);
+        const box2 = $('#frext'); if (!box2) return;
+        box2.innerHTML = extHits.length ? `<h3>Mots moins courants</h3><div class="list">${extHits.map(rowHtml).join('')}</div>` : (hits.length ? '' : '<p class="muted" style="padding:12px 0">Aucun mot du dictionnaire ne se traduit ainsi.</p>');
+        bindRows(box2);
+      });
     }
     const shown = hits.slice(0, W.limit);
     const list = $('#blist2'); list.innerHTML = shown.map(rowHtml).join('') + (hits.length > shown.length ? `<button class="btn ghost" type="button" id="bmore">Afficher plus (${hits.length - shown.length})</button>` : '') + (q && !hits.length ? '<p class="muted" style="padding:12px 0">Aucun mot traduit ne correspond.</p>' : '');
     bindRows(list);
     const more = $('#bmore'); if (more) more.onclick = () => { W.limit += 100; draw(); };
-  }
-  function drawClaude(q) {
-    const box = $('#claudebox'); if (!box) return;
-    if (W.claudeHits && W.claudeHits.q === q) {
-      box.innerHTML = W.claudeHits.items.length ? `<h3>Suggestions de Claude</h3><div class="list">${W.claudeHits.items.map(rowHtml).join('')}</div>` : '<p class="small muted">Claude n’a rien trouvé de plus.</p>';
-      bindRows(box); return;
-    }
-    if (!Store.sample) { box.innerHTML = PWA ? '<p class="small muted">Mot introuvable ? Ta page Claude peut chercher la traduction et rédiger la fiche.</p>' : '<p class="small muted">La recherche avec Claude n’est pas disponible dans cette vue.</p>'; return; }
-    box.innerHTML = `<button class="btn wide" type="button" id="askc">Demander à Claude les mots russes pour « ${esc(q)} »</button>`;
-    $('#askc').onclick = async () => {
-      box.innerHTML = '<p class="small muted"><span class="spinner"></span> Claude cherche…</p>';
-      const items = await frenchSearchWithClaude(q);
-      W.claudeHits = { q, items: items || [] }; drawClaude(q);
-    };
   }
   function rowHtml(e) {
     const has = !!S.cards[e.id];
@@ -1060,12 +1060,6 @@ function renderBank(el) {
 }
 
 // ---------------------------------------------------------------- Claude helpers (sample capability)
-const FR_RULES = `Règles pour la consigne française ("fr") :
-- nom : avec article indéfini (« une maison », « un ami »), article partitif pour les noms non comptables (« de l'eau », « du pain »), « des » pour un nom toujours pluriel ;
-- verbe : à l'infinitif (« écrire », « se lever ») ;
-- adjectif : au masculin singulier (« nouveau ») ;
-- si le mot français est ambigu (homonyme), ajoute une courte précision entre parenthèses, qui n'est pas à traduire : « une marche (escalier) », « monter (un meuble) » ;
-- "alt" : 0 à 4 autres traductions françaises correctes, au même format.`;
 async function sampleJson(prompt, opts = {}) {
   if (!Store.sample) { toast('Claude n’est pas disponible dans cette vue de la page.'); return null; }
   try { return await Store.sample.json(prompt, Object.assign({ modelTier: 'default' }, opts)); }
@@ -1075,33 +1069,6 @@ async function sampleJson(prompt, opts = {}) {
     else toast('Claude n’a pas pu répondre. Réessaie.');
     return null;
   }
-}
-async function translateWithClaude(entries) {
-  const list = entries.map(e => ({ id: e.id, ru: e.ru, classe: classLabel(e) || 'autre', genre: e.g || '', anglais: e.en || '' }));
-  const r = await sampleJson(`Tu aides un francophone débutant en russe. Donne la traduction française de chaque mot russe ci-dessous.
-${FR_RULES}
-Le sens anglais donné par le dictionnaire indique le sens à traduire.
-Réponds uniquement en JSON : un tableau d'objets {"id": "...", "fr": "...", "alt": ["..."]} dans le même ordre.
-Mots : ${JSON.stringify(list)}`);
-  return Array.isArray(r) ? r : (r && Array.isArray(r.items) ? r.items : null);
-}
-async function frenchSearchWithClaude(q) {
-  const r = await sampleJson(`Un francophone débutant en russe cherche comment dire « ${q} » en russe.
-Donne 1 à 5 mots russes courants qui traduisent ce mot, du plus courant au moins courant, en forme de dictionnaire (nominatif singulier, infinitif, masculin), sans accent tonique.
-${FR_RULES}
-Réponds uniquement en JSON : {"items":[{"ru":"...","fr":"...","alt":["..."]}]}`);
-  const items = (r && r.items) || [];
-  const out = [];
-  for (const it of items.slice(0, 6)) {
-    if (!it || !it.ru) continue;
-    const res = await lookupRu(it.ru);
-    if (res.entries.length && !res.via) {
-      const e = res.entries[0];
-      if (!D.byId.has(e.id) && !e.fr) { e.fr = it.fr; e.alt = it.alt || []; e.tsrc = 'claude'; }
-      if (!out.find(x => x.id === e.id)) out.push(e);
-    }
-  }
-  return out;
 }
 // ---------- add (batch / photo / manual)
 const AddUI = { mode: 'text', text: '', list: '', rows: null, busy: false };
@@ -1138,7 +1105,7 @@ function renderAdd(v) {
       <input type="file" id="aphoto" accept="image/*" aria-label="Photo de la liste">
       <p class="small muted" id="photonote">${Store.sample ? '' : 'La lecture de photo passe par Claude, qui n’est pas disponible dans cette vue.'}</p>`;
     if (PWA) body.innerHTML = `<p class="small">La lecture de photo passe par Claude et demande une connexion. Elle se fait sur ta page Claude :</p>
-      <p class="small muted">1. Ouvre ta page Claude, onglet Ajouter › Photo.<br>2. Vérifie la liste, puis touche « Copier pour l’appli ».<br>3. Reviens ici : Ajouter › Liste, colle, puis Analyser.</p>
+      <p class="small muted">1. Ouvre ta page Claude, onglet Ajouter › Photo.<br>2. Vérifie la liste, puis touche « Ajouter et copier pour l’appli hors ligne ».<br>3. Reviens ici : Ajouter › Liste, colle, puis Analyser.</p>
       <a class="btn primary wide" href="${CLAUDE_PAGE}" target="_blank" rel="noopener">Ouvrir ma page Claude</a>`;
     if ($('#aphoto')) $('#aphoto').onchange = async ev => {
       const file = ev.target.files && ev.target.files[0]; if (!file) return;
@@ -1202,25 +1169,18 @@ async function analyse(items) {
     } else r.status = 'missing';
     drawRows();
   }
-  // a word from the full dictionary without a French translation on the sheet: Claude proposes one, clearly marked
-  const needFr = A.rows.filter(r => r.status === 'dict' && !r.fr && !r.e.fr);
-  if (needFr.length && Store.sample) {
-    needFr.forEach(r => r.status = 'translating'); drawRows();
-    const t = await translateWithClaude(needFr.map(r => r.e)) || [];
-    needFr.forEach(r => { const m = t.find(x => x && x.id === r.e.id); r.status = 'dict'; if (m && m.fr) { r.claudeFr = m.fr; r.claudeAlt = m.alt || []; } });
-  }
   drawRows();
 }
 function trSource(r) {
   if (r.fr) return ['feuille', r.fr];
-  if (r.e && r.e.fr) return [D.byId.has(r.e.id) && !(S.words[r.e.id] && S.words[r.e.id].tsrc) ? 'banque' : (r.e.tsrc || (r.e.src === 'claude' ? 'claude' : 'banque')), r.e.fr];
-  if (r.claudeFr) return ['claude', r.claudeFr];
+  if (r.userFr) return ['user', r.userFr];
+  if (r.e && r.e.fr) return [r.e.tsrc || 'dico', r.e.fr];
   return ['', ''];
 }
-const TR_LABEL = { feuille: 'traduction de ta feuille', banque: 'traduction de la banque', claude: 'traduction proposée par Claude, à vérifier', user: 'saisie par toi' };
+const TR_LABEL = { dico: 'traduction du dictionnaire', partenaire: 'traduction du dictionnaire (partenaire d’aspect)', recoupe: 'traduction confirmée par deux dictionnaires', feuille: 'traduction de ta feuille', user: 'traduction saisie par toi', claude: 'ancienne traduction de Claude' };
 function drawRows() {
   const A = AddUI; const box = $('#arows'); if (!box || !A.rows) return;
-  const ready = A.rows.filter(r => r.e && r.keep && !['wait', 'translating'].includes(r.status) && trSource(r)[1]);
+  const ready = A.rows.filter(r => r.e && r.keep && r.status !== 'wait' && trSource(r)[1]);
   const gram = r => r.status === 'wait' ? '<span class="spinner"></span>' : r.status === 'translating' ? '<span class="spinner"></span> traduction…'
     : r.status === 'user' ? '<span class="status-dot claude"></span> saisi par toi'
     : r.status === 'missing' ? '<span class="status-dot ko"></span> absent du dictionnaire'
@@ -1230,15 +1190,17 @@ function drawRows() {
       const e = r.e; const [ts, fr] = trSource(r);
       return `<div class="item" style="grid-template-columns:auto 1fr auto"><input type="checkbox" data-keep="${i}" ${r.keep && e && fr ? 'checked' : ''} ${e && fr ? '' : 'disabled'} aria-label="Garder" style="width:20px;height:20px;accent-color:var(--blue)">
         <span class="stack" style="gap:2px;min-width:0"><span class="ru" lang="ru">${esc(e ? showStress(e.acc || e.ru) : (r.ru || '—'))} ${e ? gBadge(e) : ''}</span>
-        <span class="fr">${fr ? frHtml(fr) : (e ? '<span style="color:var(--red)">pas de traduction : tape-la avec « Un mot »</span>' : esc(r.fr || ''))}${r.alts?.length ? ` <button type="button" class="btn ghost small" data-alt="${i}" style="min-height:28px;padding:2px 6px">autre sens (${r.alts.length})</button>` : ''}</span>
+        <span class="fr">${fr ? frHtml(fr) : (e ? `<span class="stack" style="gap:4px"><input type="text" data-ufr="${i}" placeholder="pas de traduction dans le dictionnaire : tape-la" aria-label="Traduction française" style="min-height:36px;padding:6px 10px;font-size:14px">${e.sug ? `<button type="button" class="btn ghost small" data-sug="${i}" style="min-height:30px;padding:2px 6px;justify-content:flex-start">Utiliser « ${esc(e.sug)} » (suggestion par l’anglais et l’allemand, à vérifier)</button>` : ''}</span>` : esc(r.fr || ''))}${r.alts?.length ? ` <button type="button" class="btn ghost small" data-alt="${i}" style="min-height:28px;padding:2px 6px">autre sens (${r.alts.length})</button>` : ''}</span>
         ${r.via ? `<span class="small muted">Sur la feuille : ${esc(r.ru)}, une forme déclinée ou conjuguée de ${esc(plain(e.ru))}.</span>` : ''}
         ${r.status === 'missing' ? `<span class="small muted">${esc(r.ru || r.fr)} n’est dans aucun des dictionnaires. Vérifie l’orthographe ; si le mot est juste, ajoute-le avec « Un mot » en indiquant toi-même son genre.</span>` : ''}</span>
-        <span class="small muted" style="text-align:right;display:flex;flex-direction:column;gap:2px;align-items:flex-end"><span>${gram(r)}</span>${fr ? `<span style="${ts === 'claude' ? 'color:var(--amber)' : ''}">${TR_LABEL[ts] || ''}</span>` : ''}</span></div>`;
+        <span class="small muted" style="text-align:right;display:flex;flex-direction:column;gap:2px;align-items:flex-end"><span>${gram(r)}</span>${fr ? `<span>${TR_LABEL[ts] || ''}</span>` : ''}</span></div>`;
     }).join('')}</div>
     <button class="btn primary wide" type="button" id="aadd" ${ready.length ? '' : 'disabled'}>Ajouter ${ready.length} mot${ready.length > 1 ? 's' : ''} à « ${esc(A.list)} »</button>
     ${PWA ? '' : `<button class="btn wide" type="button" id="acopy" ${ready.length ? '' : 'disabled'}>Ajouter et copier pour l’appli hors ligne</button><div id="acopyhold"></div>`}
-    <p class="small muted">Accent, genre et conjugaison viennent toujours du dictionnaire. Seule la traduction française peut venir de ta feuille, de la banque ou de Claude, comme indiqué à droite de chaque mot.</p></section>`;
+    <p class="small muted">Accent, genre, conjugaison et traduction viennent du dictionnaire. Si ta feuille donne une traduction, c’est celle de ton professeur qui est gardée.</p></section>`;
   box.querySelectorAll('[data-keep]').forEach(c => c.onchange = () => { A.rows[+c.dataset.keep].keep = c.checked; drawRows(); });
+  box.querySelectorAll('[data-ufr]').forEach(inp => inp.onchange = () => { const v = inp.value.trim(); if (v) { A.rows[+inp.dataset.ufr].userFr = v; drawRows(); } });
+  box.querySelectorAll('[data-sug]').forEach(b => b.onclick = () => { const r = A.rows[+b.dataset.sug]; r.userFr = r.e.sug; drawRows(); });
   box.querySelectorAll('[data-alt]').forEach(b => b.onclick = () => { const r = A.rows[+b.dataset.alt]; const all = [r.e, ...r.alts]; r.e = all[1]; r.alts = [...all.slice(2), all[0]]; r.status = 'dict'; drawRows(); });
   $('#aclear').onclick = () => { A.rows = null; A.text = ''; render(); };
   const acopy = $('#acopy');
@@ -1266,7 +1228,7 @@ function addReady(ready, list) {
       if (D.byId.has(e.id) && !teacherFr) { addCard(e.id, list); ids.push(e.id); continue; }
       e = structuredClone(e);
       if (teacherFr) { if (e.fr && normFr(e.fr) !== normFr(teacherFr)) e.alt = [...new Set([stripPar(e.fr), ...(e.alt || [])])]; e.fr = teacherFr; e.tsrc = 'feuille'; }
-      else if (!e.fr && r.claudeFr) { e.fr = r.claudeFr; e.alt = r.claudeAlt; e.tsrc = 'claude'; }
+      else if (!e.fr && r.userFr) { e.fr = r.userFr; e.tsrc = 'user'; }
       else if (e.src === 'user') e.tsrc = 'user';
       if (!e.fr) continue;
       addCard(e.id, list, e); ids.push(e.id);
@@ -1338,15 +1300,19 @@ document.addEventListener('keydown', ev => {
 })();
 async function repairWords() {
   let fixed = 0;
-  const GRAM = ['t', 'acc', 'g', 'gs', 'gd', 'f', 'v', 'a', 'n', 'c', 'en'];
+  const GRAM = ['t', 'acc', 'g', 'gs', 'gd', 'f', 'v', 'a', 'n', 'c', 'dl'];
   for (const [id, w] of Object.entries({ ...S.words })) {
     if (!w || w.src === 'user') continue;
-    if (/^[nvao]\d+$/.test(id)) { // a dictionary word saved with older data: refresh its grammar
+    if (/^[nvao]x?\d+$/.test(id)) { // a dictionary word saved with older data: refresh it from the dictionary
       const fresh = D.byId.get(id) || await extEntry(id);
       if (!fresh) continue;
-      const merged = { ...fresh, fr: w.fr || fresh.fr, alt: w.alt || fresh.alt || [], tsrc: w.tsrc || (w.src === 'claude' ? 'claude' : 'feuille') };
+      const oldSrc = w.tsrc || (w.src === 'claude' ? 'claude' : 'feuille');
+      const keepMine = (oldSrc === 'feuille' || oldSrc === 'user') && w.fr;
+      const merged = keepMine ? { ...fresh, fr: w.fr, alt: [...new Set([...(w.alt || []), ...(fresh.fr ? [stripPar(fresh.fr)] : []), ...(fresh.alt || [])])], tsrc: oldSrc }
+        : fresh.fr ? { ...fresh } : { ...fresh, fr: w.fr, alt: w.alt || [], tsrc: oldSrc };
+      if (!keepMine && fresh.fr && D.byId.has(id)) { if (S.words[id]) { delete S.words[id]; Store.saveWord(id); fixed++; } continue; }
       if (D.byId.has(id) && normFr(merged.fr) === normFr(fresh.fr)) { delete S.words[id]; Store.saveWord(id); fixed++; continue; }
-      if (GRAM.some(k => JSON.stringify(w[k]) !== JSON.stringify(fresh[k]))) { S.words[id] = merged; addFrIndex(merged); Store.saveWord(id); fixed++; }
+      if (GRAM.some(k => JSON.stringify(w[k]) !== JSON.stringify(fresh[k])) || w.fr !== merged.fr || w.tsrc !== merged.tsrc) { S.words[id] = merged; addFrIndex(merged); Store.saveWord(id); fixed++; }
       continue;
     }
     if (/^c/.test(id)) { // an old sheet written by Claude: replace it with the dictionary entry
@@ -1354,7 +1320,8 @@ async function repairWords() {
       const target = res.entries[0];
       if (!target) continue;
       const card = S.cards[id];
-      if (!D.byId.has(target.id)) { if (res.via) continue; const copy = structuredClone(target); copy.fr = w.fr; copy.alt = w.alt || []; copy.tsrc = 'claude'; if (!copy.fr) continue; S.words[target.id] = copy; addFrIndex(copy); Store.saveWord(target.id); }
+      if (!D.byId.has(target.id) && !target.fr) { if (res.via) continue; const copy = structuredClone(target); copy.fr = w.fr; copy.alt = w.alt || []; copy.tsrc = 'claude'; if (!copy.fr) continue; S.words[target.id] = copy; addFrIndex(copy); Store.saveWord(target.id); }
+      else if (!D.byId.has(target.id)) { const copy = structuredClone(target); S.words[target.id] = copy; addFrIndex(copy); Store.saveWord(target.id); }
       if (card && !S.cards[target.id]) { S.cards[target.id] = card; Store.saveCard(target.id); }
       delete S.cards[id]; Store.saveCard(id); delete S.words[id]; Store.saveWord(id); fixed++;
     }
