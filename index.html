@@ -524,7 +524,7 @@ async function copyText(text, okMsg, holder) {
 function newDir() { return { lv: 0, n: 0, iv: 0, e: 2.5, due: 0, last: 0, h: '' }; }
 function addCard(id, list, entryObj) {
   if (entryObj && (!D.byId.has(id) || stable(entryObj) !== stable(D.byId.get(id)))) { S.words[id] = entryObj; addFrIndex(entryObj); Store.saveWord(id); }
-  if (S.cards[id]) { if (list && S.cards[id].l !== list) { S.cards[id].l = list; Store.saveCard(id); } return false; }
+  if (S.cards[id]) { if (list && !inList(S.cards[id], list)) setLists(id, [...cardLists(S.cards[id]), list]); return false; }
   S.cards[id] = { l: list || 'Mes mots', a: now(), fr: newDir(), ru: newDir() };
   Store.saveCard(id); return true;
 }
@@ -725,11 +725,18 @@ function render() {
 }
 function renameList(from, to) {
   let n = 0;
-  for (const [id, c] of Object.entries(S.cards)) if ((c.l || 'Mes mots') === from) { S.cards[id] = { ...c, l: to }; Store.saveCard(id); n++; }
+  for (const [id, c] of Object.entries(S.cards)) if (inList(c, from)) { setLists(id, cardLists(c).map(x => x === from ? to : x)); n++; }
   const st = S.settings; st.lists = [...new Set((st.lists || []).map(l => l === from ? to : l))]; if (st.lastList === from) st.lastList = to; Store.saveSettings();
   return n;
 }
-function listsOf() { const s = new Set(Object.values(S.cards).map(c => c.l || 'Mes mots')); return [...s]; }
+// a word can belong to several lists: card.ls holds them all, card.l keeps the first one for older copies of the app
+function cardLists(c) { return Array.isArray(c.ls) && c.ls.length ? c.ls : [c.l || 'Mes mots']; }
+function inList(c, l) { return cardLists(c).includes(l); }
+function setLists(id, ls) {
+  ls = [...new Set(ls.map(x => String(x).trim()).filter(Boolean))]; if (!ls.length) ls = ['Mes mots'];
+  S.cards[id] = { ...S.cards[id], l: ls[0], ls }; Store.saveCard(id);
+}
+function listsOf() { const s = new Set(Object.values(S.cards).flatMap(cardLists)); return [...s]; }
 
 // ---------- review home
 const STARTER = ['n13', 'n81', 'n376', 'n28', 'n58', 'n12', 'n8', 'n33', 'n22', 'n53', 'v4', 'v60', 'v41', 'v3', 'v12', 'a16', 'a14', 'a8', 'o0', 'o35'];
@@ -754,7 +761,7 @@ function renderReviewHome(v) {
   }
   const st = S.settings; const lists = listsOf();
   const sel = st.lists.filter(l => lists.includes(l));
-  const pool = ids.filter(id => !sel.length || sel.includes(S.cards[id].l || 'Mes mots'));
+  const pool = ids.filter(id => !sel.length || sel.some(l => inList(S.cards[id], l)));
   const t = now();
   const dirs = st.mode === 'mix' ? ['fr', 'ru'] : [st.mode];
   const dueCount = pool.filter(id => dirs.some(d => { const c = S.cards[id][d]; return !c || !c.n || c.due <= t; })).length;
@@ -957,7 +964,7 @@ function renderMine(el) {
   const draw = () => {
     const q = W.q.trim(); const qr = normRu(q), qf = noAcc(normFr(q));
     let ids = Object.keys(S.cards).filter(id => entry(id));
-    if (W.list) ids = ids.filter(id => (S.cards[id].l || 'Mes mots') === W.list);
+    if (W.list) ids = ids.filter(id => inList(S.cards[id], W.list));
     if (q) ids = ids.filter(id => { const e = entry(id); return (qr && normRu(e.ru).includes(qr)) || (qf && noAcc(normFr(e.fr || '')).includes(qf)); });
     const last = id => Math.max(S.cards[id].fr?.last || 0, S.cards[id].ru?.last || 0);
     ids.sort(W.sort === 'weak' ? (a, b) => levelOf(S.cards[a]) - levelOf(S.cards[b]) : W.sort === 'last' ? (a, b) => last(a) - last(b) : (a, b) => (S.cards[b].a || 0) - (S.cards[a].a || 0));
@@ -990,15 +997,25 @@ function renderDetail(v) {
     <section class="sheet stack">${wordDetail(e, { meta: true })}</section>
     ${c ? `<section class="sheet stack"><h3>Ma progression</h3><dl class="facts">${dirInfo(c.fr, 'FR → RU')}${dirInfo(c.ru, 'RU → FR')}${c.fm?.last ? dirInfo(c.fm, 'Conjugaison') : ''}</dl>
     <label class="field">Consigne en français (ce qui s’affiche en révision)<input type="text" id="edfr" value="${esc(e.fr || '')}"></label>
-    <label class="field">Liste<input type="text" id="edl" list="dl-lists" value="${esc(c.l || 'Mes mots')}"><datalist id="dl-lists">${lists.map(l => `<option value="${esc(l)}">`).join('')}</datalist></label>
+    <div class="field"><span>Listes</span><div class="chips" id="edls"></div>
+      <div class="row" style="gap:6px"><input type="text" id="edl" list="dl-lists" placeholder="Ajouter à une autre liste" aria-label="Ajouter à une autre liste" style="flex:1;min-width:0"><button class="btn small" type="button" id="edladd" style="min-height:44px">Ajouter</button></div>
+      <datalist id="dl-lists">${lists.map(l => `<option value="${esc(l)}">`).join('')}</datalist></div>
     <div class="row"><button class="btn primary grow" type="button" id="save">Enregistrer</button><button class="btn grow" type="button" id="reset">Remettre à zéro</button></div>
     <div id="delzone"><button class="btn danger wide" type="button" id="del">Retirer de mes mots</button></div></section>` : `<button class="btn primary wide" type="button" id="addone">Ajouter à mes mots</button>`}`;
   v.querySelectorAll('[data-close]').forEach(b => b.onclick = close);
   if (c) {
+    let ls = [...cardLists(c)];
+    const drawLs = () => {
+      $('#edls').innerHTML = ls.map((l, k) => `<span class="chip" style="display:inline-flex;gap:6px;align-items:center">${esc(l)}${ls.length > 1 ? `<button type="button" class="btn ghost small" data-rml="${k}" aria-label="Retirer de la liste ${esc(l)}" style="min-height:32px;padding:0 6px">×</button>` : ''}</span>`).join('');
+      $('#edls').querySelectorAll('[data-rml]').forEach(b => b.onclick = () => { ls.splice(+b.dataset.rml, 1); drawLs(); });
+    };
+    drawLs();
+    const addL = () => { const l = $('#edl').value.trim(); if (l && !ls.includes(l)) ls.push(l); $('#edl').value = ''; drawLs(); };
+    $('#edladd').onclick = addL; $('#edl').onkeydown = ev => { if (ev.key === 'Enter') { ev.preventDefault(); addL(); } };
     $('#save').onclick = () => {
-      const fr = $('#edfr').value.trim(); const l = $('#edl').value.trim() || 'Mes mots';
+      const fr = $('#edfr').value.trim(); const pending = $('#edl').value.trim(); if (pending && !ls.includes(pending)) ls.push(pending);
       if (fr && fr !== e.fr) { const copy = structuredClone(e); copy.fr = fr; S.words[id] = copy; addFrIndex(copy); Store.saveWord(id); }
-      if (l !== c.l) { c.l = l; Store.saveCard(id); }
+      if (stable(ls) !== stable(cardLists(c))) setLists(id, ls);
       toast('Enregistré'); close();
     };
     $('#reset').onclick = () => { c.fr = newDir(); c.ru = newDir(); c.fm = newDir(); Store.saveCard(id); toast('Progression remise à zéro'); close(); };
@@ -1303,6 +1320,7 @@ function addRowHtml(r, i) {
     <span class="stack" style="gap:4px;min-width:0"><span class="ru" lang="ru">${esc(e ? showStress(e.acc || e.ru) : (r.ru || r.fr0 || '—'))} ${e ? gBadge(e) : ''}</span>
     ${frPart ? `<span class="fr">${frPart}${r.alts?.length && e && e.fr ? ` <button type="button" class="btn ghost small" data-alt="${i}" style="min-height:32px;padding:2px 6px">autre sens (${r.alts.length})</button>` : ''}</span>` : ''}
     ${r.pron ? `<span class="small muted">Se prononce [${esc(r.pron)}]</span>` : ''}
+    ${e && S.cards[e.id] ? `<span class="small muted">Déjà dans ton cahier (${esc(cardLists(S.cards[e.id]).join(', '))}). Il y reste et rejoindra aussi cette liste.</span>` : ''}
     ${r.via ? `<span class="small muted">Sur la feuille : ${esc(r.ru)}, une forme déclinée ou conjuguée de ${esc(plain(e.ru))}.</span>` : ''}
     ${fix}</span>
     <span class="small muted" style="text-align:right;display:flex;flex-direction:column;gap:2px;align-items:flex-end"><span>${gram}</span><span data-tsrc="${i}">${fr && e ? (TR_LABEL[ts] || '') : ''}</span></span>`;
@@ -1380,7 +1398,7 @@ function doneHtml() {
   const status = d.copied === true ? `<p class="done-box">Copié. Dans l’appli Тетрадь, onglet Ajouter, touche « Coller depuis ma page Claude ».</p>`
     : d.copied === false ? `<p class="small" style="color:var(--red)">La copie automatique est bloquée dans cette vue. Utilise le fichier ou le texte ci-dessous.</p>` : '';
   return `<section class="sheet stack"><h2>« ${esc(d.list)} » : ${n} mot${n > 1 ? 's' : ''}</h2>
-    ${moved ? `<p class="small muted">${d.added} nouveau${d.added > 1 ? 'x' : ''} ; ${moved} déjà dans ton cahier, rangé${moved > 1 ? 's' : ''} maintenant dans cette liste avec leur progression.</p>` : ''}
+    ${moved ? `<p class="small muted">${d.added} nouveau${d.added > 1 ? 'x' : ''} ; ${moved} déjà dans ton cahier : ${moved > 1 ? 'ils restent' : 'il reste'} dans ${moved > 1 ? 'leurs' : 'sa'} liste${moved > 1 ? 's' : ''} d’origine, avec la même progression, et ${moved > 1 ? 'sont' : 'est'} aussi dans celle-ci.</p>` : ''}
     <p>Pour les réviser dans l’appli Тетрадь, même hors ligne :</p>
     <button class="btn primary wide" type="button" id="dcopy">Copier pour l’appli hors ligne</button>
     ${status}

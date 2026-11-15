@@ -1,5 +1,5 @@
 // Тетрадь : cache hors ligne
-const VERSION = 'tetrad-87b176fc21';
+const VERSION = 'tetrad-57f9a6ed4e';
 const CORE = ['./', 'index.html', 'manifest.webmanifest', 'icon-192.png', 'icon-512.png', 'icon-maskable-512.png', 'core.json', 'ext_idx.txt'];
 const EXT = ["forms.txt", "fr_idx.txt", "ext/a0.json", "ext/a1.json", "ext/a2.json", "ext/a3.json", "ext/a4.json", "ext/a5.json", "ext/a6.json", "ext/a7.json", "ext/ax0.json", "ext/ax1.json", "ext/n0.json", "ext/n1.json", "ext/n10.json", "ext/n11.json", "ext/n12.json", "ext/n13.json", "ext/n14.json", "ext/n15.json", "ext/n16.json", "ext/n17.json", "ext/n2.json", "ext/n3.json", "ext/n4.json", "ext/n5.json", "ext/n6.json", "ext/n7.json", "ext/n8.json", "ext/n9.json", "ext/nx0.json", "ext/nx1.json", "ext/nx2.json", "ext/nx3.json", "ext/nx4.json", "ext/o0.json", "ext/o1.json", "ext/o2.json", "ext/o3.json", "ext/v0.json", "ext/v1.json", "ext/v2.json", "ext/v3.json", "ext/v4.json", "ext/v5.json", "ext/v6.json", "ext/v7.json", "ext/v8.json", "ext/v9.json", "ext/vx0.json"];
 const FONTS = 'tetrad-fonts';
