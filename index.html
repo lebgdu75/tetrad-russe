@@ -413,7 +413,7 @@ const Store = {
             const snap = await Promise.race([coll.get(), new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), 10000))]);
             const remote = { cards: {}, words: {}, settings: null };
             snap.docs.forEach(d => {
-              this.exists.add(d.id); const v = d.data() || {};
+              this.exists.add(d.id); const v = structuredClone(d.data() || {}); // the runtime hands back frozen objects
               if (d.id === 'settings') remote.settings = v.s || null;
               else if (d.id[0] === 'p') Object.assign(remote.cards, v.c || {});
               else if (d.id[0] === 'w') Object.assign(remote.words, v.c || {});
