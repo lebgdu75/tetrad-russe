@@ -200,7 +200,9 @@ label.field { display: flex; flex-direction: column; gap: 6px; font-size: 13px; 
 .stat { background: var(--sheet); border: 1px solid var(--line); border-radius: 8px; padding: 10px; }
 .stat b { display: block; font-family: var(--font-mono); font-size: 22px; font-weight: 400; font-variant-numeric: tabular-nums; }
 .stat span { font-size: 12px; color: var(--muted); }
-.notice { background: var(--ink); color: var(--sheet); padding: 10px 14px; border-radius: 8px; font-size: 14px; margin-bottom: 12px; pointer-events: none; }
+.notice { position: fixed; z-index: 40; left: 50%; transform: translateX(-50%); top: calc(env(safe-area-inset-top, 0px) + 12px); width: max-content; max-width: calc(100% - 32px); background: var(--ink); color: var(--sheet); padding: 10px 14px; border-radius: 8px; font-size: 14px; pointer-events: none; box-shadow: 0 4px 16px rgba(0, 0, 0, 0.18); }
+.arow { min-height: 64px; }
+.done-box { border-left: 4px solid var(--green); padding-left: 12px; }
 .legend { display: grid; grid-template-columns: auto 1fr; gap: 6px 10px; align-items: baseline; font-size: 13px; }
 .legend dd { margin: 0; color: var(--muted); }
 .cnt-in { width: 72px; min-height: 44px; border: 0; text-align: center; font-family: var(--font-mono); font-size: 17px; background: none; -moz-appearance: textfield; }
@@ -490,10 +492,28 @@ function importData(d) {
   }
   renderSync(); return n;
 }
+function copySync(text) { // runs inside the tap, before any await, so the browser accepts it
+  let ok = false;
+  try {
+    const ta = document.createElement('textarea');
+    ta.value = text; ta.setAttribute('readonly', '');
+    ta.style.cssText = 'position:fixed;top:0;left:0;width:1px;height:1px;opacity:0;font-size:16px;';
+    document.body.appendChild(ta); ta.focus({ preventScroll: true }); ta.select(); ta.setSelectionRange(0, text.length);
+    ok = document.execCommand('copy'); ta.remove();
+  } catch (e) { ok = false; }
+  return ok;
+}
 async function copyText(text, okMsg, holder) {
-  try { await navigator.clipboard.writeText(text); toast(okMsg); return; } catch (e) {}
-  if (holder) { holder.innerHTML = `<p class="small muted">Copie automatique impossible ici : sélectionne tout le texte ci-dessous et copie-le.</p><textarea readonly style="min-height:90px">${esc(text)}</textarea>`; const t = holder.querySelector('textarea'); t.focus(); t.select(); }
+  let ok = false;
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    const p = navigator.clipboard.writeText(text); // started inside the tap
+    try { await Promise.race([p, new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), 1500))]); ok = true; } catch (e) { ok = false; }
+  }
+  if (!ok) ok = copySync(text);
+  if (ok) { toast(okMsg); if (holder) holder.innerHTML = ''; return true; }
+  if (holder) { holder.innerHTML = `<p class="small">La copie automatique est bloquée ici. Touche le texte ci-dessous, sélectionne tout, puis copie.</p><textarea readonly style="min-height:90px;font-size:13px">${esc(text)}</textarea>`; const t = holder.querySelector('textarea'); t.onclick = () => t.select(); }
   else toast('Copie impossible dans cette vue.');
+  return false;
 }
 
 // ---------------------------------------------------------------- cards & scheduling
@@ -1072,6 +1092,7 @@ async function sampleJson(prompt, opts = {}) {
 const AddUI = { mode: 'text', text: '', list: '', rows: null, busy: false };
 function renderAdd(v) {
   const A = AddUI;
+  if (A.done) { v.innerHTML = '<div id="arows" class="stack"></div>'; drawRows(); return; }
   if (!A.list) A.list = 'Cours du ' + todayLabel();
   v.innerHTML = `<section class="sheet stack">
       <h2>Ajouter des mots</h2>
@@ -1127,7 +1148,7 @@ Réponds uniquement en JSON : {"items":[{"ru":"...","fr":"..."}]}`, { images: [b
       <button class="btn primary wide" type="button" id="mgo">Chercher dans le dictionnaire</button>`;
     $('#mgo').onclick = () => { const ru = $('#mru').value.trim(), fr = $('#mfr').value.trim(); if (ru || fr) analyse([{ ru, fr, manual: { t: $('#mt').value, g: $('#mg').value } }]); };
   }
-  if (A.rows) drawRows();
+  if (A.rows || A.done) drawRows();
 }
 function parseLines(text) {
   return text.split(/\n+/).map(l => l.trim()).filter(Boolean).map(l => {
@@ -1149,10 +1170,13 @@ async function shrinkImage(file) {
 }
 async function analyse(items) {
   const A = AddUI;
+  A.done = null;
   const expanded = [];
   for (const x of items) { if (x.ru && isCyr(x.ru)) expandRu(x.ru, x.fr).forEach(y => expanded.push({ ...x, ...y })); else expanded.push(x); }
   A.rows = expanded.map(x => ({ ...x, status: 'wait', e: null, keep: true, via: '' }));
+  A.busy = true;
   drawRows();
+  let n = 0;
   for (const r of A.rows) {
     if (r.ru) {
       const res = await lookupRu(r.ru);
@@ -1165,8 +1189,10 @@ async function analyse(items) {
       if (cands.length) { r.e = cands[0]; r.alts = cands.slice(1, 4); r.status = 'dict'; r.fr = ''; }
       else r.status = 'missing';
     } else r.status = 'missing';
-    drawRows();
+    n++;
+    const pr = $('#aprogress'); if (pr) pr.textContent = `Recherche dans le dictionnaire… ${n} / ${A.rows.length}`;
   }
+  A.busy = false;
   drawRows();
 }
 function trSource(r) {
@@ -1176,48 +1202,93 @@ function trSource(r) {
   return ['', ''];
 }
 const TR_LABEL = { dico: 'traduction du dictionnaire', partenaire: 'traduction du dictionnaire (partenaire d’aspect)', recoupe: 'traduction confirmée par deux dictionnaires', feuille: 'traduction de ta feuille', user: 'traduction saisie par toi', claude: 'ancienne traduction de Claude' };
-function drawRows() {
-  const A = AddUI; const box = $('#arows'); if (!box || !A.rows) return;
-  const ready = A.rows.filter(r => r.e && r.keep && r.status !== 'wait' && trSource(r)[1]);
-  const gram = r => r.status === 'wait' ? '<span class="spinner"></span>' : r.status === 'translating' ? '<span class="spinner"></span> traduction…'
-    : r.status === 'user' ? '<span class="status-dot claude"></span> saisi par toi'
+function readyRows() { return (AddUI.rows || []).filter(r => r.e && r.keep && r.status !== 'wait' && trSource(r)[1]); }
+function addRowHtml(r, i) {
+  const e = r.e; const [ts, fr] = trSource(r);
+  const gram = r.status === 'user' ? '<span class="status-dot claude"></span> saisi par toi'
     : r.status === 'missing' ? '<span class="status-dot ko"></span> absent du dictionnaire'
-    : r.via ? `<span class="status-dot ok"></span> forme de « ${esc(plain(r.e.ru))} »` : '<span class="status-dot ok"></span> dans le dictionnaire';
+    : r.via ? `<span class="status-dot ok"></span> forme de « ${esc(plain(e.ru))} »` : '<span class="status-dot ok"></span> dans le dictionnaire';
+  const frPart = r.fr || (e && e.fr) ? frHtml(fr)
+    : e ? `<span class="stack" style="gap:4px"><input type="text" data-ufr="${i}" value="${esc(r.userFr || '')}" placeholder="pas de traduction dans le dictionnaire : tape-la" aria-label="Traduction française" style="min-height:40px;padding:6px 10px;font-size:16px">${e.sug ? `<button type="button" class="btn ghost small" data-sug="${i}" style="min-height:36px;padding:2px 6px;justify-content:flex-start;text-align:left">Utiliser « ${esc(e.sug)} » (suggestion par l’anglais et l’allemand, à vérifier)</button>` : ''}</span>`
+    : esc(r.fr || '');
+  return `<input type="checkbox" data-keep="${i}" ${r.keep ? 'checked' : ''} ${e ? '' : 'disabled'} aria-label="Garder ce mot" style="width:22px;height:22px;accent-color:var(--blue)">
+    <span class="stack" style="gap:2px;min-width:0"><span class="ru" lang="ru">${esc(e ? showStress(e.acc || e.ru) : (r.ru || '—'))} ${e ? gBadge(e) : ''}</span>
+    <span class="fr">${frPart}${r.alts?.length ? ` <button type="button" class="btn ghost small" data-alt="${i}" style="min-height:32px;padding:2px 6px">autre sens (${r.alts.length})</button>` : ''}</span>
+    ${r.via ? `<span class="small muted">Sur la feuille : ${esc(r.ru)}, une forme déclinée ou conjuguée de ${esc(plain(e.ru))}.</span>` : ''}
+    ${r.status === 'missing' ? `<span class="small muted">${esc(r.ru || r.fr)} n’est dans aucun des dictionnaires. Vérifie l’orthographe ; si le mot est juste, ajoute-le avec « Un mot » en indiquant toi-même son genre.</span>` : ''}</span>
+    <span class="small muted" style="text-align:right;display:flex;flex-direction:column;gap:2px;align-items:flex-end"><span>${gram}</span><span data-tsrc="${i}">${fr ? (TR_LABEL[ts] || '') : ''}</span></span>`;
+}
+function updateFooter() { // changes labels only: nothing moves under the finger
+  const A = AddUI; const n = readyRows().length; const list = (A.list || '').trim() || 'Mes mots';
+  const add = $('#aadd'), cp = $('#acopy');
+  if (add) { add.disabled = !n; add.textContent = `Ajouter ${n} mot${n > 1 ? 's' : ''} à « ${list} »`; }
+  if (cp) { cp.disabled = !n; cp.textContent = `Ajouter ${n} mot${n > 1 ? 's' : ''} et copier pour l’appli hors ligne`; }
+  const miss = A.rows.filter(r => r.e && r.keep && !trSource(r)[1]).length;
+  const note = $('#amissing'); if (note) { note.hidden = !miss; note.textContent = miss ? `${miss} mot${miss > 1 ? 's' : ''} coché${miss > 1 ? 's' : ''} sans traduction : tape-la dans la case, sinon ${miss > 1 ? 'ils ne seront pas ajoutés' : 'il ne sera pas ajouté'}.` : ''; }
+}
+function bindRow(el, i) {
+  const A = AddUI; const r = A.rows[i];
+  const cb = el.querySelector('[data-keep]'); if (cb) cb.onchange = () => { r.keep = cb.checked; updateFooter(); };
+  const inp = el.querySelector('[data-ufr]'); if (inp) inp.oninput = () => { r.userFr = inp.value.trim(); const t = el.querySelector('[data-tsrc]'); if (t) t.textContent = r.userFr ? TR_LABEL.user : ''; updateFooter(); };
+  const sg = el.querySelector('[data-sug]'); if (sg) sg.onclick = () => { r.userFr = r.e.sug; if (inp) inp.value = r.e.sug; const t = el.querySelector('[data-tsrc]'); if (t) t.textContent = TR_LABEL.user; updateFooter(); };
+  const al = el.querySelector('[data-alt]'); if (al) al.onclick = () => { const all = [r.e, ...r.alts]; r.e = all[1]; r.alts = [...all.slice(2), all[0]]; r.status = 'dict'; r.userFr = ''; el.innerHTML = addRowHtml(r, i); bindRow(el, i); updateFooter(); };
+}
+function drawRows() {
+  const A = AddUI; const box = $('#arows'); if (!box) return;
+  if (A.done) { box.innerHTML = doneHtml(); bindDone(); return; }
+  if (!A.rows) { box.innerHTML = ''; return; }
+  if (A.busy) { box.innerHTML = `<section class="sheet stack"><p id="aprogress" class="row" style="gap:8px"><span class="spinner"></span> Recherche dans le dictionnaire… 0 / ${A.rows.length}</p></section>`; return; }
   box.innerHTML = `<section class="sheet stack"><div class="row"><h2 class="grow">${A.rows.length} ligne${A.rows.length > 1 ? 's' : ''}</h2><button class="btn ghost" type="button" id="aclear">Effacer</button></div>
-    <div class="list">${A.rows.map((r, i) => {
-      const e = r.e; const [ts, fr] = trSource(r);
-      return `<div class="item" style="grid-template-columns:auto 1fr auto"><input type="checkbox" data-keep="${i}" ${r.keep && e && fr ? 'checked' : ''} ${e && fr ? '' : 'disabled'} aria-label="Garder" style="width:20px;height:20px;accent-color:var(--blue)">
-        <span class="stack" style="gap:2px;min-width:0"><span class="ru" lang="ru">${esc(e ? showStress(e.acc || e.ru) : (r.ru || '—'))} ${e ? gBadge(e) : ''}</span>
-        <span class="fr">${fr ? frHtml(fr) : (e ? `<span class="stack" style="gap:4px"><input type="text" data-ufr="${i}" placeholder="pas de traduction dans le dictionnaire : tape-la" aria-label="Traduction française" style="min-height:36px;padding:6px 10px;font-size:14px">${e.sug ? `<button type="button" class="btn ghost small" data-sug="${i}" style="min-height:30px;padding:2px 6px;justify-content:flex-start">Utiliser « ${esc(e.sug)} » (suggestion par l’anglais et l’allemand, à vérifier)</button>` : ''}</span>` : esc(r.fr || ''))}${r.alts?.length ? ` <button type="button" class="btn ghost small" data-alt="${i}" style="min-height:28px;padding:2px 6px">autre sens (${r.alts.length})</button>` : ''}</span>
-        ${r.via ? `<span class="small muted">Sur la feuille : ${esc(r.ru)}, une forme déclinée ou conjuguée de ${esc(plain(e.ru))}.</span>` : ''}
-        ${r.status === 'missing' ? `<span class="small muted">${esc(r.ru || r.fr)} n’est dans aucun des dictionnaires. Vérifie l’orthographe ; si le mot est juste, ajoute-le avec « Un mot » en indiquant toi-même son genre.</span>` : ''}</span>
-        <span class="small muted" style="text-align:right;display:flex;flex-direction:column;gap:2px;align-items:flex-end"><span>${gram(r)}</span>${fr ? `<span>${TR_LABEL[ts] || ''}</span>` : ''}</span></div>`;
-    }).join('')}</div>
-    <button class="btn primary wide" type="button" id="aadd" ${ready.length ? '' : 'disabled'}>Ajouter ${ready.length} mot${ready.length > 1 ? 's' : ''} à « ${esc(A.list)} »</button>
-    ${PWA ? '' : `<button class="btn wide" type="button" id="acopy" ${ready.length ? '' : 'disabled'}>Ajouter et copier pour l’appli hors ligne</button><div id="acopyhold"></div>`}
+    <div class="list">${A.rows.map((r, i) => `<div class="item arow" data-row="${i}" style="grid-template-columns:auto 1fr auto">${addRowHtml(r, i)}</div>`).join('')}</div>
+    <p class="small" id="amissing" style="color:var(--red)" hidden></p>
+    <button class="btn primary wide" type="button" id="aadd"></button>
+    ${PWA ? '' : `<button class="btn wide" type="button" id="acopy"></button>`}
     <p class="small muted">Accent, genre, conjugaison et traduction viennent du dictionnaire. Si ta feuille donne une traduction, c’est celle de ton professeur qui est gardée.</p></section>`;
-  box.querySelectorAll('[data-keep]').forEach(c => c.onchange = () => { A.rows[+c.dataset.keep].keep = c.checked; drawRows(); });
-  box.querySelectorAll('[data-ufr]').forEach(inp => inp.onchange = () => { const v = inp.value.trim(); if (v) { A.rows[+inp.dataset.ufr].userFr = v; drawRows(); } });
-  box.querySelectorAll('[data-sug]').forEach(b => b.onclick = () => { const r = A.rows[+b.dataset.sug]; r.userFr = r.e.sug; drawRows(); });
-  box.querySelectorAll('[data-alt]').forEach(b => b.onclick = () => { const r = A.rows[+b.dataset.alt]; const all = [r.e, ...r.alts]; r.e = all[1]; r.alts = [...all.slice(2), all[0]]; r.status = 'dict'; drawRows(); });
+  box.querySelectorAll('[data-row]').forEach(el => bindRow(el, +el.dataset.row));
+  updateFooter();
   $('#aclear').onclick = () => { A.rows = null; A.text = ''; render(); };
-  const acopy = $('#acopy');
-  if (acopy) acopy.onclick = () => {
+  const finish = (copy) => {
     const list = (A.list || '').trim() || 'Mes mots';
+    const ready = readyRows(); if (!ready.length) return;
+    const before = Object.keys(S.cards).length;
     const ids = addReady(ready, list);
-    const text = transferText('words', list, ids);
-    const hold = $('#acopyhold');
-    copyText(text, `${ids.length} mot${ids.length > 1 ? 's' : ''} copié${ids.length > 1 ? 's' : ''}. Dans l’appli : Ajouter › Liste › colle, puis Analyser.`, hold).then(() => { if (!hold.innerHTML) { A.rows = null; A.text = ''; A.list = ''; render(); } });
+    const added = Object.keys(S.cards).length - before;
+    S.settings.lastList = list; Store.saveSettings(); renderSync();
+    A.done = { list, ids, added, text: copy ? transferText('words', list, ids) : '', copied: null };
+    A.rows = null; A.text = '';
+    return A.done;
+  };
+  const cp = $('#acopy');
+  if (cp) cp.onclick = () => {
+    const d = finish(true); if (!d) return;
+    const syncOk = copySync(d.text);               // inside the tap: accepted by the Claude frame
+    d.copied = syncOk ? true : null;
+    render(); toTop();
+    if (!syncOk) copyText(d.text, 'Mots copiés', null).then(ok => { d.copied = ok; drawRows(); });
   };
   $('#aadd').onclick = () => {
-    const list = (A.list || '').trim() || 'Mes mots';
-    const before = Object.keys(S.cards).length;
-    addReady(ready, list);
-    const n = Object.keys(S.cards).length - before;
-    S.settings.lastList = list; Store.saveSettings(); renderSync();
-    toast(n ? `${n} mot${n > 1 ? 's' : ''} ajouté${n > 1 ? 's' : ''} à « ${list} »` : 'Ces mots étaient déjà dans ton cahier.');
-    A.rows = null; A.text = ''; A.list = ''; render();
+    const d = finish(false); if (!d) return;
+    toast(d.added ? `${d.added} mot${d.added > 1 ? 's' : ''} ajouté${d.added > 1 ? 's' : ''} à « ${d.list} »` : 'Ces mots étaient déjà dans ton cahier.');
+    A.done = null; A.list = ''; render(); toTop();
   };
+}
+function doneHtml() {
+  const d = AddUI.done; const n = d.ids.length;
+  const head = `<h2>${n} mot${n > 1 ? 's' : ''} ajouté${n > 1 ? 's' : ''} à « ${esc(d.list)} »</h2>`;
+  const copied = d.copied === true ? `<p class="done-box">Les mots sont copiés. Ouvre l’appli Тетрадь, va dans Ajouter › Liste, colle le texte dans la case, puis touche Analyser.</p>`
+    : d.copied === false ? `<p class="small" style="color:var(--red)">La copie automatique est bloquée dans cette vue. Utilise un des moyens ci-dessous.</p>` : '<p class="small muted"><span class="spinner"></span> Copie en cours…</p>';
+  return `<section class="sheet stack">${head}${copied}
+    <div class="row"><button class="btn grow" type="button" id="dcopy">Copier à nouveau</button>${Store.downloads ? '<button class="btn grow" type="button" id="dfile">Enregistrer un fichier</button>' : ''}</div>
+    ${Store.downloads ? '<p class="small muted">Avec le fichier : dans l’appli, Réglages › Importer une sauvegarde, puis choisis le fichier dans Téléchargements.</p>' : ''}
+    <details${d.copied === false ? ' open' : ''}><summary>Afficher le texte à copier à la main</summary><textarea id="dtext" readonly style="min-height:110px;font-size:13px">${esc(d.text)}</textarea></details>
+    <button class="btn primary wide" type="button" id="dnew">Ajouter d’autres mots</button></section>`;
+}
+function bindDone() {
+  const d = AddUI.done;
+  $('#dcopy').onclick = () => { if (copySync(d.text)) { d.copied = true; toast('Mots copiés'); drawRows(); } else copyText(d.text, 'Mots copiés', null).then(ok => { d.copied = ok; drawRows(); }); };
+  const f = $('#dfile'); if (f) f.onclick = async () => { try { await Store.downloads.save({ filename: 'tetrad-mots-' + new Date().toISOString().slice(0, 10) + '.json', data: d.text }); toast('Fichier enregistré'); } catch (e) { if (!(e && /declin|cancel/i.test(e.code || e.message || ''))) toast('Enregistrement impossible dans cette vue.'); } };
+  const t = $('#dtext'); if (t) t.onclick = () => t.select();
+  $('#dnew').onclick = () => { AddUI.done = null; AddUI.list = ''; render(); toTop(); };
 }
 function addReady(ready, list) {
   const ids = [];
