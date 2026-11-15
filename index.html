@@ -202,6 +202,9 @@ label.field { display: flex; flex-direction: column; gap: 6px; font-size: 13px; 
 .stat span { font-size: 12px; color: var(--muted); }
 .notice { position: fixed; z-index: 40; left: 50%; transform: translateX(-50%); top: calc(env(safe-area-inset-top, 0px) + 12px); width: max-content; max-width: calc(100% - 32px); background: var(--ink); color: var(--sheet); padding: 10px 14px; border-radius: 8px; font-size: 14px; pointer-events: none; box-shadow: 0 4px 16px rgba(0, 0, 0, 0.18); }
 .arow { min-height: 64px; }
+.arow.todo { background: var(--amber-soft); border-left: 4px solid var(--amber); padding-left: 8px; border-radius: 6px; }
+.arow.todo > :last-child { grid-column: 2 / 4; flex-direction: row !important; gap: 10px !important; align-items: center !important; text-align: left !important; }
+.arow [data-sug] { display: block; white-space: normal; }
 .done-box { border-left: 4px solid var(--green); padding-left: 12px; }
 .legend { display: grid; grid-template-columns: auto 1fr; gap: 6px 10px; align-items: baseline; font-size: 13px; }
 .legend dd { margin: 0; color: var(--muted); }
@@ -340,24 +343,25 @@ async function loadExtIdx() {
   D.extIdx = t.split('\n').map(l => { const [id, ru] = l.split('\t'); return { id, ru, k: normRu(ru) }; });
   return D.extIdx;
 }
-async function loadExtFile(type) {
-  if (D.extFiles[type]) return D.extFiles[type];
-  const p = (async () => {
-    const arr = await (await fetch('ext_' + type + '.json')).json();
-    for (const e of arr) D.extById.set(e.id, e);
-    return arr;
+function chunkOf(id) { const m = /^([nvao])(x?)(\d+)$/.exec(id); return m ? m[1] + m[2] + Math.floor(+m[3] / 1500) : ''; }
+async function loadChunk(key) { // the full dictionary is split in small files: a lookup loads ~0.2 MB, not 8 MB
+  if (!key) return [];
+  if (!D.extFiles[key]) D.extFiles[key] = (async () => {
+    try { const arr = await (await fetch('ext/' + key + '.json')).json(); for (const e of arr) D.extById.set(e.id, e); return arr; }
+    catch (e) { delete D.extFiles[key]; return []; }
   })();
-  D.extFiles[type] = p; return p;
+  return D.extFiles[key];
 }
-async function extEntry(id) { await loadExtFile(id[0]); return D.extById.get(id) || null; }
-async function loadForms() {
-  if (D.forms) return D.forms;
-  if (!D.formsP) D.formsP = (async () => {
-    const t = await (await fetch('forms.txt')).text(); const m = new Map();
-    for (const l of t.split('\n')) { const i = l.indexOf('\t'); if (i > 0) m.set(l.slice(0, i), l.slice(i + 1).split(',')); }
-    D.forms = m; return m;
-  })();
+async function extEntry(id) { if (!D.extById.has(id)) await loadChunk(chunkOf(id)); return D.extById.get(id) || null; }
+async function extEntries(ids) { await Promise.all([...new Set(ids.map(chunkOf))].map(loadChunk)); return ids.map(id => D.extById.get(id)).filter(Boolean); }
+async function loadForms() { // kept as one string: a lookup is a text search, nothing to parse
+  if (D.formsText) return D.formsText;
+  if (!D.formsP) D.formsP = (async () => { D.formsText = '\n' + await (await fetch('forms.txt')).text() + '\n'; return D.formsText; })();
   return D.formsP;
+}
+function formIds(text, k) {
+  const i = text.indexOf('\n' + k + '\t'); if (i < 0) return [];
+  const a = i + k.length + 2; return text.slice(a, text.indexOf('\n', a)).split(',');
 }
 async function lookupRu(word) { // real dictionary lookup: exact dictionary form first, then inflected forms
   const k = normRu(word); if (!k) return { entries: [], via: '' };
@@ -368,11 +372,11 @@ async function lookupRu(word) { // real dictionary lookup: exact dictionary form
   for (const [id, w] of Object.entries(S.words)) if (w.src === 'user' && normRu(w.ru) === k) add(w);
   if (!out.length) {
     const idx = await loadExtIdx();
-    for (const h of idx.filter(x => x.k === k || x.k.replace(/ё/g, 'е') === k2).slice(0, 4)) add(await extEntry(h.id));
+    for (const e of await extEntries(idx.filter(x => x.k === k || x.k.replace(/ё/g, 'е') === k2).slice(0, 4).map(h => h.id))) add(e);
   }
   if (out.length) return { entries: out, via: '' };
   const forms = await loadForms();
-  const ids = forms.get(k) || forms.get(k2) || [];
+  let ids = formIds(forms, k); if (!ids.length && k2 !== k) ids = formIds(forms, k2);
   for (const id of ids.slice(0, 4)) add(D.byId.get(id) || await extEntry(id));
   out.sort((a, b) => (D.byId.has(a.id) ? 0 : 1) - (D.byId.has(b.id) ? 0 : 1));
   return { entries: out, via: out.length ? k : '' };
@@ -1024,10 +1028,8 @@ function renderBank(el) {
       loadExtIdx().then(async idx => {
         if (W.bankQ.trim() !== q) return;
         const ext = idx.filter(x => (!T || x.id[0] === T) && x.k.startsWith(k)).slice(0, 25);
-        const types = [...new Set(ext.map(x => x.id[0]))];
-        await Promise.all(types.map(loadExtFile));
+        const extHits = await extEntries(ext.map(x => x.id));
         if (W.bankQ.trim() !== q) return;
-        const extHits = ext.map(x => D.extById.get(x.id)).filter(Boolean);
         const note = $('#extnote'); if (note) note.innerHTML = extHits.length ? `<h3>Mots moins courants</h3>` : '';
         if (extHits.length) { const l2 = document.createElement('div'); l2.className = 'list'; l2.innerHTML = extHits.map(rowHtml).join(''); note.after(l2); bindRows(l2); }
       });
@@ -1048,9 +1050,8 @@ function renderBank(el) {
         if (W.bankQ.trim() !== q) return;
         const ids = []; for (const [kk, v] of idx) if (kk === k || kk.startsWith(k + ' ') || kk.endsWith(' ' + k) || kk.includes(' ' + k + ' ')) v.forEach(id => { if (!D.byId.has(id) && (!T || id[0] === T)) ids.push(id); });
         const uniq = [...new Set(ids)].slice(0, 25);
-        await Promise.all([...new Set(uniq.map(id => id[0]))].map(loadExtFile));
+        const extHits = await extEntries(uniq);
         if (W.bankQ.trim() !== q) return;
-        const extHits = uniq.map(id => D.extById.get(id)).filter(Boolean);
         const box2 = $('#frext'); if (!box2) return;
         box2.innerHTML = extHits.length ? `<h3>Mots moins courants</h3><div class="list">${extHits.map(rowHtml).join('')}</div>` : (hits.length ? '' : '<p class="muted" style="padding:12px 0">Aucun mot du dictionnaire ne se traduit ainsi.</p>');
         bindRows(box2);
@@ -1202,94 +1203,103 @@ function trSource(r) {
   return ['', ''];
 }
 const TR_LABEL = { dico: 'traduction du dictionnaire', partenaire: 'traduction du dictionnaire (partenaire d’aspect)', recoupe: 'traduction confirmée par deux dictionnaires', feuille: 'traduction de ta feuille', user: 'traduction saisie par toi', claude: 'ancienne traduction de Claude' };
-function readyRows() { return (AddUI.rows || []).filter(r => r.e && r.keep && r.status !== 'wait' && trSource(r)[1]); }
+function hasTr(r) { return !!trSource(r)[1]; }
+function readyRows() { return (AddUI.rows || []).filter(r => r.e && r.keep && r.status !== 'wait' && hasTr(r)); }
+function needsWork(r) { return !r.e || !hasTr(r); }
 function addRowHtml(r, i) {
   const e = r.e; const [ts, fr] = trSource(r);
   const gram = r.status === 'user' ? '<span class="status-dot claude"></span> saisi par toi'
     : r.status === 'missing' ? '<span class="status-dot ko"></span> absent du dictionnaire'
     : r.via ? `<span class="status-dot ok"></span> forme de « ${esc(plain(e.ru))} »` : '<span class="status-dot ok"></span> dans le dictionnaire';
   const frPart = r.fr || (e && e.fr) ? frHtml(fr)
-    : e ? `<span class="stack" style="gap:4px"><input type="text" data-ufr="${i}" value="${esc(r.userFr || '')}" placeholder="pas de traduction dans le dictionnaire : tape-la" aria-label="Traduction française" style="min-height:40px;padding:6px 10px;font-size:16px">${e.sug ? `<button type="button" class="btn ghost small" data-sug="${i}" style="min-height:36px;padding:2px 6px;justify-content:flex-start;text-align:left">Utiliser « ${esc(e.sug)} » (suggestion par l’anglais et l’allemand, à vérifier)</button>` : ''}</span>`
-    : esc(r.fr || '');
-  return `<input type="checkbox" data-keep="${i}" ${r.keep ? 'checked' : ''} ${e ? '' : 'disabled'} aria-label="Garder ce mot" style="width:22px;height:22px;accent-color:var(--blue)">
-    <span class="stack" style="gap:2px;min-width:0"><span class="ru" lang="ru">${esc(e ? showStress(e.acc || e.ru) : (r.ru || '—'))} ${e ? gBadge(e) : ''}</span>
-    <span class="fr">${frPart}${r.alts?.length ? ` <button type="button" class="btn ghost small" data-alt="${i}" style="min-height:32px;padding:2px 6px">autre sens (${r.alts.length})</button>` : ''}</span>
+    : e ? `<span class="stack" style="gap:6px"><input type="text" data-ufr="${i}" value="${esc(r.userFr || '')}" placeholder="tape la traduction" aria-label="Traduction française de ${esc(e.ru)}" style="min-height:44px;padding:8px 10px;font-size:16px">${e.sug ? `<button type="button" class="btn small" data-sug="${i}" style="min-height:40px;padding:4px 10px;justify-content:flex-start;text-align:left">Utiliser « ${esc(e.sug)} » <span class="muted">(suggestion à vérifier)</span></button>` : ''}</span>`
+    : '';
+  return `${e ? `<input type="checkbox" data-keep="${i}" ${r.keep ? 'checked' : ''} aria-label="Ajouter ${esc(e.ru)}" style="width:24px;height:24px;accent-color:var(--blue)">` : '<span style="width:24px"></span>'}
+    <span class="stack" style="gap:4px;min-width:0"><span class="ru" lang="ru">${esc(e ? showStress(e.acc || e.ru) : (r.ru || '—'))} ${e ? gBadge(e) : ''}</span>
+    <span class="fr">${frPart}${r.alts?.length && e && e.fr ? ` <button type="button" class="btn ghost small" data-alt="${i}" style="min-height:32px;padding:2px 6px">autre sens (${r.alts.length})</button>` : ''}</span>
     ${r.via ? `<span class="small muted">Sur la feuille : ${esc(r.ru)}, une forme déclinée ou conjuguée de ${esc(plain(e.ru))}.</span>` : ''}
-    ${r.status === 'missing' ? `<span class="small muted">${esc(r.ru || r.fr)} n’est dans aucun des dictionnaires. Vérifie l’orthographe ; si le mot est juste, ajoute-le avec « Un mot » en indiquant toi-même son genre.</span>` : ''}</span>
+    ${r.status === 'missing' ? `<span class="small">${esc(r.ru || r.fr)} n’est dans aucun dictionnaire. Vérifie l’orthographe sur ta feuille ; si le mot est juste, ajoute-le avec « Un mot ».</span>` : ''}</span>
     <span class="small muted" style="text-align:right;display:flex;flex-direction:column;gap:2px;align-items:flex-end"><span>${gram}</span><span data-tsrc="${i}">${fr ? (TR_LABEL[ts] || '') : ''}</span></span>`;
 }
-function updateFooter() { // changes labels only: nothing moves under the finger
-  const A = AddUI; const n = readyRows().length; const list = (A.list || '').trim() || 'Mes mots';
-  const add = $('#aadd'), cp = $('#acopy');
-  if (add) { add.disabled = !n; add.textContent = `Ajouter ${n} mot${n > 1 ? 's' : ''} à « ${list} »`; }
-  if (cp) { cp.disabled = !n; cp.textContent = `Ajouter ${n} mot${n > 1 ? 's' : ''} et copier pour l’appli hors ligne`; }
-  const miss = A.rows.filter(r => r.e && r.keep && !trSource(r)[1]).length;
-  const note = $('#amissing'); if (note) { note.hidden = !miss; note.textContent = miss ? `${miss} mot${miss > 1 ? 's' : ''} coché${miss > 1 ? 's' : ''} sans traduction : tape-la dans la case, sinon ${miss > 1 ? 'ils ne seront pas ajoutés' : 'il ne sera pas ajouté'}.` : ''; }
+function updateFooter() { // changes text only: nothing moves under the finger
+  const A = AddUI; if (!A.rows) return;
+  const n = readyRows().length; const list = (A.list || '').trim() || 'Mes mots';
+  const todo = A.rows.filter(needsWork).length, ok = A.rows.length - todo;
+  const add = $('#aadd');
+  if (add) { add.disabled = !n; add.textContent = n ? `Ajouter ${n} mot${n > 1 ? 's' : ''} à « ${list} »` : 'Coche au moins un mot'; }
+  const sum = $('#asummary'); if (sum) sum.innerHTML = `${todo ? `<span class="tag irr">${todo} à compléter</span>` : ''}<span class="tag">${ok} prêt${ok > 1 ? 's' : ''}</span><span class="tag asp">${n} coché${n > 1 ? 's' : ''}</span>`;
 }
 function bindRow(el, i) {
   const A = AddUI; const r = A.rows[i];
+  const mark = () => { el.classList.toggle('todo', needsWork(r)); const t = el.querySelector('[data-tsrc]'); if (t) t.textContent = hasTr(r) ? (TR_LABEL[trSource(r)[0]] || '') : ''; };
   const cb = el.querySelector('[data-keep]'); if (cb) cb.onchange = () => { r.keep = cb.checked; updateFooter(); };
-  const inp = el.querySelector('[data-ufr]'); if (inp) inp.oninput = () => { r.userFr = inp.value.trim(); const t = el.querySelector('[data-tsrc]'); if (t) t.textContent = r.userFr ? TR_LABEL.user : ''; updateFooter(); };
-  const sg = el.querySelector('[data-sug]'); if (sg) sg.onclick = () => { r.userFr = r.e.sug; if (inp) inp.value = r.e.sug; const t = el.querySelector('[data-tsrc]'); if (t) t.textContent = TR_LABEL.user; updateFooter(); };
-  const al = el.querySelector('[data-alt]'); if (al) al.onclick = () => { const all = [r.e, ...r.alts]; r.e = all[1]; r.alts = [...all.slice(2), all[0]]; r.status = 'dict'; r.userFr = ''; el.innerHTML = addRowHtml(r, i); bindRow(el, i); updateFooter(); };
+  const inp = el.querySelector('[data-ufr]');
+  if (inp) inp.oninput = () => { const had = !!r.userFr; r.userFr = inp.value.trim(); if (!had && r.userFr && cb) { cb.checked = r.keep = true; } if (!r.userFr && cb) { cb.checked = r.keep = false; } mark(); updateFooter(); };
+  const sg = el.querySelector('[data-sug]'); if (sg) sg.onclick = () => { r.userFr = r.e.sug; if (inp) inp.value = r.e.sug; if (cb) cb.checked = r.keep = true; mark(); updateFooter(); };
+  const al = el.querySelector('[data-alt]'); if (al) al.onclick = () => { const all = [r.e, ...r.alts]; r.e = all[1]; r.alts = [...all.slice(2), all[0]]; r.status = 'dict'; r.userFr = ''; r.keep = hasTr(r); el.innerHTML = addRowHtml(r, i); bindRow(el, i); mark(); updateFooter(); };
+  mark();
 }
 function drawRows() {
   const A = AddUI; const box = $('#arows'); if (!box) return;
   if (A.done) { box.innerHTML = doneHtml(); bindDone(); return; }
   if (!A.rows) { box.innerHTML = ''; return; }
   if (A.busy) { box.innerHTML = `<section class="sheet stack"><p id="aprogress" class="row" style="gap:8px"><span class="spinner"></span> Recherche dans le dictionnaire… 0 / ${A.rows.length}</p></section>`; return; }
-  box.innerHTML = `<section class="sheet stack"><div class="row"><h2 class="grow">${A.rows.length} ligne${A.rows.length > 1 ? 's' : ''}</h2><button class="btn ghost" type="button" id="aclear">Effacer</button></div>
-    <div class="list">${A.rows.map((r, i) => `<div class="item arow" data-row="${i}" style="grid-template-columns:auto 1fr auto">${addRowHtml(r, i)}</div>`).join('')}</div>
-    <p class="small" id="amissing" style="color:var(--red)" hidden></p>
+  A.rows.forEach(r => { if (r.keep === undefined || r.keep === true && !r._init) { r.keep = !!r.e && hasTr(r); r._init = true; } });
+  const order = A.rows.map((r, i) => i).sort((a, b) => (needsWork(A.rows[b]) - needsWork(A.rows[a])) || a - b);
+  const todo = order.filter(i => needsWork(A.rows[i])), ok = order.filter(i => !needsWork(A.rows[i]));
+  const rowsOf = ids => ids.map(i => `<div class="item arow" data-row="${i}" style="grid-template-columns:auto 1fr auto">${addRowHtml(A.rows[i], i)}</div>`).join('');
+  box.innerHTML = `<section class="sheet stack"><div class="row"><h2 class="grow">${A.rows.length} mot${A.rows.length > 1 ? 's' : ''} lu${A.rows.length > 1 ? 's' : ''}</h2><button class="btn ghost" type="button" id="aclear">Effacer</button></div>
+    <div class="chips" id="asummary"></div>
+    ${todo.length ? `<div class="stack" style="gap:4px"><h3 style="color:var(--amber)">À compléter</h3><p class="small muted">Sans traduction, ou absents du dictionnaire. Tape la traduction pour ajouter le mot ; sinon il est laissé de côté.</p><div class="list">${rowsOf(todo)}</div></div>` : ''}
+    ${ok.length ? `<div class="stack" style="gap:4px"><h3>Prêts à ajouter</h3><div class="list">${rowsOf(ok)}</div></div>` : ''}
     <button class="btn primary wide" type="button" id="aadd"></button>
-    ${PWA ? '' : `<button class="btn wide" type="button" id="acopy"></button>`}
     <p class="small muted">Accent, genre, conjugaison et traduction viennent du dictionnaire. Si ta feuille donne une traduction, c’est celle de ton professeur qui est gardée.</p></section>`;
   box.querySelectorAll('[data-row]').forEach(el => bindRow(el, +el.dataset.row));
   updateFooter();
   $('#aclear').onclick = () => { A.rows = null; A.text = ''; render(); };
-  const finish = (copy) => {
-    const list = (A.list || '').trim() || 'Mes mots';
-    const ready = readyRows(); if (!ready.length) return;
-    const before = Object.keys(S.cards).length;
-    const ids = addReady(ready, list);
-    const added = Object.keys(S.cards).length - before;
-    S.settings.lastList = list; Store.saveSettings(); renderSync();
-    A.done = { list, ids, added, text: copy ? transferText('words', list, ids) : '', copied: null };
-    A.rows = null; A.text = '';
-    return A.done;
-  };
-  const cp = $('#acopy');
-  if (cp) cp.onclick = () => {
-    const d = finish(true); if (!d) return;
-    const syncOk = copySync(d.text);               // inside the tap: accepted by the Claude frame
-    d.copied = syncOk ? true : null;
-    render(); toTop();
-    if (!syncOk) copyText(d.text, 'Mots copiés', null).then(ok => { d.copied = ok; drawRows(); });
-  };
   $('#aadd').onclick = () => {
-    const d = finish(false); if (!d) return;
-    toast(d.added ? `${d.added} mot${d.added > 1 ? 's' : ''} ajouté${d.added > 1 ? 's' : ''} à « ${d.list} »` : 'Ces mots étaient déjà dans ton cahier.');
-    A.done = null; A.list = ''; render(); toTop();
+    try {
+      const list = (A.list || '').trim() || 'Mes mots';
+      const ready = readyRows(); if (!ready.length) return;
+      const before = Object.keys(S.cards).length;
+      const ids = addReady(ready, list);
+      const added = Object.keys(S.cards).length - before;
+      S.settings.lastList = list; Store.saveSettings(); renderSync();
+      A.rows = null; A.text = '';
+      if (PWA) { toast(added ? `${added} mot${added > 1 ? 's' : ''} ajouté${added > 1 ? 's' : ''} à « ${list} »` : 'Ces mots étaient déjà dans ton cahier.'); A.list = ''; render(); toTop(); return; }
+      A.done = { list, ids, added, text: transferText('words', list, ids), copied: null };
+      render(); toTop();
+    } catch (err) { showError(err); }
   };
 }
 function doneHtml() {
   const d = AddUI.done; const n = d.ids.length;
-  const head = `<h2>${n} mot${n > 1 ? 's' : ''} ajouté${n > 1 ? 's' : ''} à « ${esc(d.list)} »</h2>`;
-  const copied = d.copied === true ? `<p class="done-box">Les mots sont copiés. Ouvre l’appli Тетрадь, va dans Ajouter › Liste, colle le texte dans la case, puis touche Analyser.</p>`
-    : d.copied === false ? `<p class="small" style="color:var(--red)">La copie automatique est bloquée dans cette vue. Utilise un des moyens ci-dessous.</p>` : '<p class="small muted"><span class="spinner"></span> Copie en cours…</p>';
-  return `<section class="sheet stack">${head}${copied}
-    <div class="row"><button class="btn grow" type="button" id="dcopy">Copier à nouveau</button>${Store.downloads ? '<button class="btn grow" type="button" id="dfile">Enregistrer un fichier</button>' : ''}</div>
-    ${Store.downloads ? '<p class="small muted">Avec le fichier : dans l’appli, Réglages › Importer une sauvegarde, puis choisis le fichier dans Téléchargements.</p>' : ''}
+  const status = d.copied === true ? `<p class="done-box">Copié. Ouvre l’appli Тетрадь, va dans Ajouter › Liste, colle le texte dans la case, puis touche Analyser.</p>`
+    : d.copied === false ? `<p class="small" style="color:var(--red)">La copie automatique est bloquée dans cette vue. Utilise le fichier ou le texte ci-dessous.</p>` : '';
+  return `<section class="sheet stack"><h2>${n} mot${n > 1 ? 's' : ''} ajouté${n > 1 ? 's' : ''} à « ${esc(d.list)} »</h2>
+    <p>Pour les réviser hors ligne, envoie-les dans l’appli Тетрадь :</p>
+    <button class="btn primary wide" type="button" id="dcopy">Copier pour l’appli hors ligne</button>
+    ${status}
+    ${Store.downloads ? '<button class="btn wide" type="button" id="dfile">Enregistrer un fichier</button><p class="small muted">Avec le fichier : dans l’appli, Réglages › Importer une sauvegarde, puis choisis le fichier dans Téléchargements.</p>' : ''}
     <details${d.copied === false ? ' open' : ''}><summary>Afficher le texte à copier à la main</summary><textarea id="dtext" readonly style="min-height:110px;font-size:13px">${esc(d.text)}</textarea></details>
-    <button class="btn primary wide" type="button" id="dnew">Ajouter d’autres mots</button></section>`;
+    <button class="btn wide" type="button" id="dnew">Ajouter d’autres mots</button></section>`;
 }
 function bindDone() {
   const d = AddUI.done;
-  $('#dcopy').onclick = () => { if (copySync(d.text)) { d.copied = true; toast('Mots copiés'); drawRows(); } else copyText(d.text, 'Mots copiés', null).then(ok => { d.copied = ok; drawRows(); }); };
+  $('#dcopy').onclick = () => {
+    if (copySync(d.text)) { d.copied = true; toast('Copié'); drawRows(); return; }
+    copyText(d.text, 'Copié', null).then(ok => { d.copied = ok; drawRows(); });
+  };
   const f = $('#dfile'); if (f) f.onclick = async () => { try { await Store.downloads.save({ filename: 'tetrad-mots-' + new Date().toISOString().slice(0, 10) + '.json', data: d.text }); toast('Fichier enregistré'); } catch (e) { if (!(e && /declin|cancel/i.test(e.code || e.message || ''))) toast('Enregistrement impossible dans cette vue.'); } };
   const t = $('#dtext'); if (t) t.onclick = () => t.select();
   $('#dnew').onclick = () => { AddUI.done = null; AddUI.list = ''; render(); toTop(); };
 }
+function showError(err) {
+  const msg = (err && (err.message || err.reason && err.reason.message || err.reason)) || String(err);
+  toast('Erreur : ' + String(msg).slice(0, 140) + '. Fais une capture d’écran pour Claude.', 9000);
+}
+window.addEventListener('error', e => showError(e.error || e.message));
+window.addEventListener('unhandledrejection', e => showError(e.reason));
 function addReady(ready, list) {
   const ids = [];
     for (const r of ready) {
@@ -1365,8 +1375,10 @@ document.addEventListener('keydown', ev => {
   render();
   await Store.init();
   render();
-  repairWords().catch(() => {});
+  const DATA_VER = 'dico-2026-11-15';
+  if (S.settings.repaired !== DATA_VER) setTimeout(() => repairWords().then(() => { S.settings.repaired = DATA_VER; Store.saveSettings(); }).catch(() => {}), 1500);
 })();
+function stable(o) { return JSON.stringify(o, (k, v) => v && typeof v === 'object' && !Array.isArray(v) ? Object.fromEntries(Object.keys(v).sort().map(x => [x, v[x]])) : v); }
 async function repairWords() {
   let fixed = 0;
   const GRAM = ['t', 'acc', 'g', 'gs', 'gd', 'f', 'v', 'a', 'n', 'c', 'dl'];
@@ -1381,7 +1393,7 @@ async function repairWords() {
         : fresh.fr ? { ...fresh } : { ...fresh, fr: w.fr, alt: w.alt || [], tsrc: oldSrc };
       if (!keepMine && fresh.fr && D.byId.has(id)) { if (S.words[id]) { delete S.words[id]; Store.saveWord(id); fixed++; } continue; }
       if (D.byId.has(id) && normFr(merged.fr) === normFr(fresh.fr)) { delete S.words[id]; Store.saveWord(id); fixed++; continue; }
-      if (GRAM.some(k => JSON.stringify(w[k]) !== JSON.stringify(fresh[k])) || w.fr !== merged.fr || w.tsrc !== merged.tsrc) { S.words[id] = merged; addFrIndex(merged); Store.saveWord(id); fixed++; }
+      if (GRAM.some(k => stable(w[k]) !== stable(fresh[k])) || w.fr !== merged.fr || w.tsrc !== merged.tsrc) { S.words[id] = merged; addFrIndex(merged); Store.saveWord(id); fixed++; }
       continue;
     }
     if (/^c/.test(id)) { // an old sheet written by Claude: replace it with the dictionary entry
@@ -1395,7 +1407,7 @@ async function repairWords() {
       delete S.cards[id]; Store.saveCard(id); delete S.words[id]; Store.saveWord(id); fixed++;
     }
   }
-  if (fixed) { renderSync(); toast(`${fixed} mot${fixed > 1 ? 's' : ''} mis à jour à partir du dictionnaire`, 5000); if (tab !== 'review' || !Session.cur) render(); }
+  if (fixed) { renderSync(); toast(`${fixed} mot${fixed > 1 ? 's' : ''} mis à jour à partir du dictionnaire`, 5000); if (tab === 'words' && WordsUI.sub === 'mine' && !Detail.id) render(); }
 }
 })();
 </script>
