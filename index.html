@@ -244,6 +244,8 @@ details summary { cursor: pointer; color: var(--blue); font-weight: 500; padding
 .facts dd.frdd { font-family: var(--font-ui); font-size: 14px; }
 .verdict { flex-direction: column; gap: 4px; }
 .done-box { border-left: 4px solid var(--green); }
+
+.btn.choice { justify-content: flex-start; text-align: left; white-space: normal; line-height: 1.35; padding: 8px 10px; }
 </style>
 </head>
 <body>
@@ -357,10 +359,11 @@ async function lookupRu(word, exact) {
   const k2 = k.replace(/ё/g, 'е');
   for (const id of (D.byRu.get(k) || [])) add(D.byId.get(id));
   if (!out.length) for (const [kk, ids] of D.byRu) if (kk.replace(/ё/g, 'е') === k2) ids.forEach(id => add(D.byId.get(id)));
-  if (!out.length) {
+  { // homographs from the full dictionary too (есть "manger" and есть "il y a")
     const idx = await loadExtIdx();
-    const hits = idx.filter(x => x.k === k || x.k.replace(/ё/g, 'е') === k2).slice(0, 4).map(h => h.id);
-    (await dictMany(hits)).forEach(add);
+    let hits = idx.filter(x => x.k === k).map(h => h.id);
+    if (!hits.length && !out.length) hits = idx.filter(x => x.k.replace(/ё/g, 'е') === k2).map(h => h.id);
+    (await dictMany(hits.slice(0, 4))).forEach(add);
   }
   if (out.length || exact || /\s/.test(k)) return { entries: out, via: '' };
   const forms = await loadForms();
@@ -411,7 +414,7 @@ function wordView(b) {
 }
 // French prompt keeps the book's words, with the dictionary's article when it is the same word
 function promptFr(tr, d) {
-  if (!tr) return d ? d.fr : '';
+  if (!tr || !stripPar(tr).replace(/[?!.…\s]/g, '')) return (d && d.fr) || tr || ''; // the book only gives an annotation such as (neutre)
   if (d && d.fr && !DET_RE.test(normFr(tr)) && frParts(tr).length === 1 && noAcc(frCore(tr)) === noAcc(frCore(d.fr)) && DET_RE.test(normFr(d.fr))) return d.fr;
   return tr;
 }
