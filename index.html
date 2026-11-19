@@ -311,6 +311,14 @@ function showError(err) {
 }
 window.addEventListener('error', e => showError(e.error || e.message));
 window.addEventListener('unhandledrejection', e => showError(e.reason));
+function ago(ts) {
+  if (!ts) return 'jamais';
+  const d = (now() - ts) / DAY;
+  if (d < 1 / 24) return 'il y a ' + Math.max(1, Math.round(d * 1440)) + ' min';
+  if (d < 1) return 'il y a ' + Math.round(d * 24) + ' h';
+  if (d < 2) return 'hier';
+  return 'il y a ' + Math.round(d) + ' j';
+}
 const dateLabel = ts => new Date(ts).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' });
 const plural = (n, one, many) => `${n} ${n > 1 ? (many || one + 's') : one}`;
 
@@ -509,23 +517,33 @@ function gBadge(g) { if (!g) return ''; const l = { m: 'm', f: 'f', n: 'n', pl: 
 
 // ===================================================================== installed app: review, consult, receive
 const CLAUDE_PAGE = 'https://claude.ai/artifact/4Fsdkk7nvKg252Bj9sf2QL';
-const DEFAULTS = { types: { vocab: true, conj: false, decl: false }, tenses: ['present'], dir: 'mix', count: 20, preset: 'due', autoSpeak: true, rate: 0.9, voice: '', topicsOn: [], topicsOff: [], ema: { fr: 9000, ru: 7000 } };
-const A = { pages: new Map(), cards: {}, settings: structuredClone(DEFAULTS), bank: new Map(), views: new Map(), tab: 'review', sess: null, consult: { mode: 'mine', q: '', open: null, page: null, limit: 150 } };
+const DEFAULTS = { types: { vocab: true, conj: false, decl: false }, tenses: ['present'], dir: 'mix', count: 20, preset: 'all', autoSpeak: true, rate: 0.9, voice: '', topicsOn: [], topicsOff: [], ema: { fr: 9000, ru: 7000 } };
+const A = { pages: new Map(), cards: {}, edits: {}, settings: structuredClone(DEFAULTS), bank: new Map(), views: new Map(), tab: 'review', sess: null, consult: { mode: 'mine', q: '', open: null, page: null, limit: 150 } };
 
 // ---------------------------------------------------------------- storage (this phone)
 function save() {
-  const ok = lsSet('tetrad2-app', { pages: [...A.pages.values()], cards: A.cards, settings: A.settings });
+  const ok = lsSet('tetrad2-app', { pages: [...A.pages.values()], cards: A.cards, settings: A.settings, edits: A.edits });
   if (!ok) toast('Stockage du téléphone plein : exporte une sauvegarde dans Réglages.', 6000);
 }
 function load() {
   try { localStorage.removeItem('tetrad-state'); } catch (e) {} // first version of the app: you chose to start again from zero
   const s = lsGet('tetrad2-app');
-  if (s) { (s.pages || []).forEach(p => A.pages.set(p.key, p)); A.cards = s.cards || {}; A.settings = Object.assign(structuredClone(DEFAULTS), s.settings || {}); A.settings.types = Object.assign({}, DEFAULTS.types, A.settings.types || {}); }
+  if (s) { (s.pages || []).forEach(p => A.pages.set(p.key, p)); A.cards = s.cards || {}; A.edits = s.edits || {}; A.settings = Object.assign(structuredClone(DEFAULTS), s.settings || {}); A.settings.types = Object.assign({}, DEFAULTS.types, A.settings.types || {}); }
   Voice.rate = A.settings.rate; Voice.voice = A.settings.voice;
   try { navigator.storage && navigator.storage.persist && navigator.storage.persist(); } catch (e) {}
 }
 async function rebuild() {
   A.bank = buildBank([...A.pages.values()]);
+  for (const [id, e] of Object.entries(A.edits)) { // your own corrections win over the book and the dictionary
+    const b = A.bank.get(id); if (!b) continue;
+    if (e.bfr) b.bfr = e.bfr;
+    if (e.irr !== undefined) { b.irr = e.irr ? [e.irr] : []; b.irrLesson = e.irr ? [e.irr] : []; }
+    if (e.pron !== undefined) b.pron = e.pron;
+    if (e.cat !== undefined) b.cats = e.cat ? [e.cat] : [];
+    if (e.ru) { b.ru = e.ru; b.w = e.ru; }
+    if (e.g !== undefined) b.g = e.g;
+    b.off = !!e.off; b.edited = true;
+  }
   await loadCore();
   await dictMany([...A.bank.keys()].filter(id => !id.startsWith('b')));
   A.views = new Map([...A.bank.values()].map(b => [b.id, wordView(b)]));
@@ -564,7 +582,7 @@ function declCells(w) {
   return out.filter(c => c.f).length > 1 ? out.filter(c => c.f) : [];
 }
 const cellOk = (val, f) => String(f).split(/,\s*/).some(x => normAns(x) === normAns(val));
-const seenWords = () => [...A.views.values()].filter(w => w.seen);
+const seenWords = () => [...A.views.values()].filter(w => w.seen && !w.b.off);
 function seenTopics() {
   const s = new Set();
   for (const p of A.pages.values()) if (p.kind === 'lesson') (p.topics || []).forEach(t => s.add(t));
@@ -591,7 +609,24 @@ function level(st) { if (!st || !st.last) return 0; if (!st.iv) return 1; return
 const LEVELS = ['jamais révisé', 'à revoir', 'en cours', 'bien parti', 'solide', 'acquis'];
 function meter(l) { return `<span class="meter l${l}" title="${LEVELS[l]}" aria-label="${LEVELS[l]}"><i></i><i></i><i></i><i></i><i></i></span>`; }
 const wordLevel = id => { const c = A.cards[id]; return c ? Math.min(level(c.fr), level(c.ru)) : 0; };
-const isDue = (id, dir) => { const c = A.cards[id]; const st = c && c[dir]; return !st || !st.last || st.due <= now(); };
+// how likely a question is to come up: never zero, higher when the word is weak or was just missed
+function weight(st) {
+  if (!st || !st.last) return 5;
+  let w = [5, 6, 4, 3, 2, 1.2][level(st)];
+  if ((st.h || '').endsWith('0')) w *= 1.6;
+  const since = now() - st.last;
+  if (since < 10 * 60000) w *= 0.25; // not again right away
+  return w;
+}
+function sample(cands, n) { // weighted draw without replacement
+  const pool = cands.slice(); const out = [];
+  while (out.length < n && pool.length) {
+    const tot = pool.reduce((a, c) => a + c.wt, 0); let r = Math.random() * tot, k = 0;
+    while (k < pool.length - 1 && (r -= pool[k].wt) > 0) k++;
+    out.push(pool.splice(k, 1)[0]);
+  }
+  return out;
+}
 
 // ---------------------------------------------------------------- irregular forms (book first, dictionary forms to name the person)
 function irregulars(w) {
@@ -640,10 +675,10 @@ function status() { const el = $('#sync'); if (el) el.textContent = `${plural(se
 // ---------------------------------------------------------------- review home: compose a session
 function presets() {
   const words = seenWords(); const out = [];
-  const due = words.filter(w => isDue(w.id, 'fr') || isDue(w.id, 'ru'));
+  const weak = words.filter(w => wordLevel(w.id) <= 2);
   const missed = words.filter(w => { const c = A.cards[w.id]; return c && ['fr', 'ru'].some(d => c[d].last > now() - 7 * DAY && c[d].h.endsWith('0')); });
-  out.push({ id: 'due', label: 'À revoir maintenant', words: due, group: 'Général' });
   out.push({ id: 'all', label: 'Tout mon vocabulaire', words, group: 'Général' });
+  if (weak.length) out.push({ id: 'weak', label: 'Les moins maîtrisés', words: weak, group: 'Général' });
   if (missed.length) out.push({ id: 'missed', label: 'Ratés cette semaine', words: missed, group: 'Général' });
   const lessons = [...A.pages.values()].filter(p => p.kind === 'lesson').sort((a, b) => (parseInt(a.page) || 0) - (parseInt(b.page) || 0));
   for (const p of lessons) out.push({ id: 'p:' + p.page, label: 'Page ' + p.page + (p.title ? ' · ' + p.title : ''), words: p.items.map(i => A.views.get(i.id)).filter(Boolean), group: 'Pages du livre' });
@@ -661,7 +696,7 @@ function renderHome(v) {
     $('[data-go]', v).onclick = () => setTab('receive'); return;
   }
   const st = A.settings; const ps = presets();
-  if (!ps.find(p => p.id === st.preset)) st.preset = 'due';
+  if (!ps.find(p => p.id === st.preset)) st.preset = 'all';
   const cur = ps.find(p => p.id === st.preset);
   const groups = [...new Set(ps.map(p => p.group))];
   v.innerHTML = `<section class="sheet stack">
@@ -672,7 +707,7 @@ function renderHome(v) {
         <div class="seg" role="group" aria-label="Sens">${[['fr', 'Français → russe'], ['ru', 'Russe → français'], ['mix', 'Les deux']].map(([k, l]) => `<button type="button" data-dir="${k}" aria-pressed="${st.dir === k}">${l}</button>`).join('')}</div></div>
       <div class="row"><h3 class="grow">Nombre de questions</h3><div class="stepper"><button type="button" data-step="-5" aria-label="Moins">−</button><input class="cnt-in" id="cnt" type="number" inputmode="numeric" min="1" value="${st.count}" aria-label="Nombre de questions"><button type="button" data-step="5" aria-label="Plus">+</button></div></div>
       <button class="btn primary wide" type="button" id="go"></button>
-      ${st.preset === 'due' && !cur.words.length ? '<p class="small muted">Tout est à jour. Tu peux quand même réviser « Tout mon vocabulaire » ou une page.</p>' : ''}
+      <p class="small muted">Tous tes mots peuvent tomber à chaque séance ; les moins maîtrisés et ceux que tu viens de rater tombent plus souvent.</p>
     </section>
     ${stats()}`;
   $$('[data-preset]', v).forEach(b => b.onclick = () => { st.preset = b.dataset.preset; save(); render(); });
@@ -707,24 +742,21 @@ function stats() {
 
 // ---------------------------------------------------------------- session
 function buildTasks(words) {
-  const st = A.settings; const t = now(); const lists = [];
-  const order = arr => arr.sort((a, b) => ((a.due <= t ? 0 : 1) - (b.due <= t ? 0 : 1)) || (a.lv - b.lv) || (a.r - b.r));
-  if (st.types.vocab) lists.push(order(words.map(w => {
-    const dir = st.dir !== 'mix' ? st.dir : (() => { const c = A.cards[w.id]; if (!c) return Math.random() < 0.5 ? 'fr' : 'ru'; return (c.fr.due || 0) <= (c.ru.due || 0) ? 'fr' : 'ru'; })();
-    const s = A.cards[w.id] && A.cards[w.id][dir]; return { kind: 'vocab', id: w.id, dir, due: s && s.last ? s.due : 0, lv: level(s), r: Math.random() };
-  })));
-  if (st.types.conj) lists.push(order(words.flatMap(w => st.tenses.filter(k => verbForms(w.d, k).length).map(k => {
-    const s = A.cards[w.id] && A.cards[w.id].conj && A.cards[w.id].conj[k]; return { kind: 'conj', id: w.id, tense: k, due: s && s.last ? s.due : 0, lv: level(s), r: Math.random() };
-  }))));
-  if (st.types.decl) lists.push(order(words.filter(w => declCells(w).length).map(w => {
-    const s = A.cards[w.id] && A.cards[w.id].decl; return { kind: 'decl', id: w.id, due: s && s.last ? s.due : 0, lv: level(s), r: Math.random() };
-  })));
-  const out = []; let k = 0; // one of each type in turn
-  while (lists.some(l => l.length)) { const l = lists[k++ % lists.length]; if (l.length) out.push(l.shift()); }
+  const st = A.settings; const out = [];
+  if (st.types.vocab) for (const w of words) {
+    const c = A.cards[w.id];
+    const dirs = st.dir === 'mix' ? ['fr', 'ru'] : [st.dir];
+    const ws = dirs.map(d => weight(c && c[d]));
+    let dir = dirs[0]; if (dirs.length > 1) dir = Math.random() * (ws[0] + ws[1]) < ws[0] ? 'fr' : 'ru';
+    out.push({ kind: 'vocab', id: w.id, dir, wt: Math.max(...ws) });
+  }
+  if (st.types.conj) for (const w of words) for (const k of st.tenses) if (verbForms(w.d, k).length) { const c = A.cards[w.id]; out.push({ kind: 'conj', id: w.id, tense: k, wt: weight(c && c.conj && c.conj[k]) }); }
+  if (st.types.decl) for (const w of words) if (declCells(w).length) { const c = A.cards[w.id]; out.push({ kind: 'decl', id: w.id, wt: weight(c && c.decl) }); }
   return out;
 }
 function startSession(words, count) {
-  const list = buildTasks(words).slice(0, Math.max(1, count));
+  const list = sample(buildTasks(words), Math.max(1, count));
+  for (let i = 1; i < list.length; i++) if (list[i].id === list[i - 1].id) { const j = list.findIndex((x, k) => k > i && x.id !== list[i].id); if (j > 0) [list[i], list[j]] = [list[j], list[i]]; }
   A.sess = { list, i: 0, results: [], phase: 'ask' };
   render(); toTop();
 }
@@ -939,11 +971,26 @@ function renderWord(v, w) {
   }
   const irr = irregulars(w);
   const notes = (d && d.n || []).map(n => `<div class="note rule">${esc(n[1])}</div>`).join('');
-  const lvlOf = s => s && s.last ? `${LEVELS[level(s)]} · prochaine fois ${s.due <= now() ? 'maintenant' : 'dans ' + Math.max(1, Math.round((s.due - now()) / DAY)) + ' j'}` : 'jamais révisé';
-  const lvl = dir => { const s = c && c[dir]; return s && s.last ? `${LEVELS[level(s)]} · prochaine fois ${s.due <= now() ? 'maintenant' : 'dans ' + Math.max(1, Math.round((s.due - now()) / DAY)) + ' j'}` : 'jamais révisé'; };
-  v.innerHTML = `<div class="row"><button class="btn ghost" type="button" data-back>‹ Retour</button></div>
+  const lvlOf = s => s && s.last ? `${LEVELS[level(s)]} · dernière fois ${ago(s.last)} · ${(s.h || '').split('').filter(x => x === '1').length} / ${(s.h || '').length} réussies récemment` : 'jamais révisé';
+  const lvl = dir => lvlOf(c && c[dir]);
+  const ed = A.edits[w.id] || {};
+  v.innerHTML = `<div class="row"><button class="btn ghost" type="button" data-back>‹ Retour</button><span class="grow"></span>${w.b.pages.length || w.b.lex.length ? '<button class="btn" type="button" id="edit">Modifier</button>' : ''}</div>
+    <section class="sheet stack" id="editbox" hidden>
+      <h2>Modifier cette entrée</h2>
+      <p class="small muted">Tes modifications restent sur ce téléphone et passent avant le livre et le dictionnaire.</p>
+      ${d ? '' : `<label class="field">Mot russe<input type="text" id="e_ru" lang="ru" value="${esc(ed.ru || w.acc)}" autocapitalize="off" spellcheck="false"></label>
+      <label class="field">Genre<select id="e_g"><option value="">non indiqué</option>${['m', 'f', 'n', 'pl'].map(g => `<option value="${g}" ${(ed.g ?? w.g) === g ? 'selected' : ''}>${GENDER[g]}</option>`).join('')}</select></label>`}
+      <label class="field">Traduction demandée en révision<input type="text" id="e_fr" value="${esc(w.b.bfr || w.tr)}"><span class="small muted">Sépare plusieurs sens par des virgules : chacun sera accepté.</span></label>
+      <label class="field">Formes irrégulières à retenir<input type="text" id="e_irr" lang="ru" value="${esc(w.b.irr.join(', '))}" placeholder="par exemple : хочу, хочешь, хотят"><span class="small muted">Elles seront interrogées après la bonne réponse.</span></label>
+      <label class="field">Prononciation<input type="text" id="e_pron" lang="ru" value="${esc(w.b.pron || '')}" placeholder="par exemple : што"></label>
+      <label class="field">Thème<select id="e_cat"><option value="">aucun</option>${CATEGORIES.map(c => `<option ${w.b.cats[0] === c ? 'selected' : ''}>${esc(c)}</option>`).join('')}</select></label>
+      <label class="switch"><input type="checkbox" id="e_off" ${w.b.off ? 'checked' : ''}><span class="stack" style="gap:2px"><span class="t">Ne plus me poser ce mot</span><span class="d">Il reste consultable ici.</span></span></label>
+      <div class="row"><button class="btn primary grow" type="button" id="e_save">Enregistrer</button><button class="btn" type="button" id="e_cancel">Annuler</button></div>
+      ${w.b.edited ? '<button class="btn ghost" type="button" id="e_reset">Revenir à la version du livre</button>' : ''}
+    </section>
     <section class="sheet stack">
       <div class="word-head"><span class="ru-big" lang="ru">${esc(w.acc)}</span>${speakBtn(w.ru)}${gBadge(w.g)}</div>
+      ${w.b.off ? '<p class="small" style="color:var(--amber)">Exclu de tes révisions.</p>' : ''}${w.b.edited ? '<p class="small muted">Modifié par toi.</p>' : ''}
       <p class="small muted">${esc(classOf(w))}${w.g ? ' · ' + esc(GENDER[w.g] || '') : ''}${w.b.pron ? ` · se prononce [${esc(w.b.pron)}]` : ''}</p>
       <dl class="facts">${tr.map(([a, b]) => `<dt>${a}</dt><dd class="frdd">${esc(b)}</dd>`).join('')}
         ${w.b.pages.length ? `<dt>Vu</dt><dd class="frdd">page ${esc(w.b.pages.join(', '))}</dd>` : ''}${w.b.lex.length ? `<dt>Lexique</dt><dd class="frdd">page ${esc(w.b.lex.join(', '))}</dd>` : ''}
@@ -955,6 +1002,17 @@ function renderWord(v, w) {
       <div id="rz"><button class="btn wide" type="button" id="reset">Remettre à zéro</button></div></section>` : '<p class="small muted">Ce mot est dans le lexique du livre mais dans aucune de tes pages de leçon : il n’est pas encore révisé.</p>'}
     <p class="small muted">Grammaire : ${d ? 'dictionnaires OpenRussian et OpenCorpora' : 'aucune, mot absent des dictionnaires'}. Traduction : ${w.trSrc === 'livre' ? 'ton livre' : 'dictionnaire WikDict'}.</p>`;
   $('[data-back]', v).onclick = () => { A.consult.open = null; render(); };
+  const eb = $('#edit'); if (eb) eb.onclick = () => { $('#editbox').hidden = false; eb.hidden = true; $('#e_fr').focus(); };
+  if ($('#e_save')) {
+    $('#e_cancel').onclick = render;
+    $('#e_save').onclick = async () => {
+      const e = { bfr: $('#e_fr').value.trim(), irr: $('#e_irr').value.trim(), pron: $('#e_pron').value.trim().replace(/^\[|\]$/g, ''), cat: $('#e_cat').value, off: $('#e_off').checked };
+      if (!d) { e.ru = $('#e_ru').value.trim(); e.g = $('#e_g').value; }
+      if (!e.bfr) return toast('La traduction ne peut pas être vide.');
+      A.edits[w.id] = e; save(); await rebuild(); status(); toast('Entrée modifiée'); render();
+    };
+    const er = $('#e_reset'); if (er) er.onclick = async () => { delete A.edits[w.id]; save(); await rebuild(); status(); toast('Version du livre rétablie'); render(); };
+  }
   const rs = $('#reset'); if (rs) rs.onclick = () => {
     $('#rz').innerHTML = '<div class="row"><span class="small grow">Effacer la progression de ce mot ?</span><button class="btn" type="button" id="no">Non</button><button class="btn danger" type="button" id="yes">Effacer</button></div>';
     $('#no').onclick = render; $('#yes').onclick = () => { delete A.cards[w.id]; save(); toast('Progression effacée'); render(); };
