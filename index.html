@@ -246,6 +246,9 @@ details summary { cursor: pointer; color: var(--blue); font-weight: 500; padding
 .done-box { border-left: 4px solid var(--green); }
 
 .btn.choice { justify-content: flex-start; text-align: left; white-space: normal; line-height: 1.35; padding: 8px 10px; }
+
+.preview { border: 1px solid var(--line); border-radius: 8px; overflow: hidden; background: var(--paper); max-height: 60vh; display: flex; justify-content: center; }
+.preview img { max-height: 60vh; width: auto; max-width: 100%; display: block; }
 </style>
 </head>
 <body>
@@ -561,12 +564,17 @@ function irregulars(w) {
   for (const text of w.b.irr) {
     const fromLesson = w.b.irrLesson.includes(text);
     for (const part of text.split(/[,;\/]/).map(s => s.trim()).filter(Boolean)) {
+      const stem = part.match(/^(?:radical\s+)?([Ѐ-ӿ]+)-$/i);
+      if (stem) { // the book prints only the stem: the forms built on it are the irregular ones
+        const st = normAns(stem[1]); const hits = forms.filter(x => x.topic === 'present' && normAns(x.f).startsWith(st));
+        if (hits.length) { hits.forEach(m => out.push({ ...m, printed: m.f, test: fromLesson || topics.has(m.topic) })); continue; }
+      }
       const k = normAns(part.replace(/^(я|ты|он|она|оно|мы|вы|они)\s+/i, ''));
       const m = forms.find(x => normAns(x.f) === k);
       out.push(m ? { ...m, printed: part, test: fromLesson || topics.has(m.topic) } : { printed: part, test: false });
     }
   }
-  return out;
+  return out.filter((x, i) => out.findIndex(y => normAns(y.f || y.printed) === normAns(x.f || x.printed)) === i);
 }
 
 // ---------------------------------------------------------------- shell
